@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Attendance</title>
+<style>
+  :root {
+    --ink: #1f2420;
+    --paper: #f7f5f0;
+    --card: #ffffff;
+    --line: #dcd8ce;
+    --accent: #2f6f4f;
+    --accent-soft: #e6efe9;
+    --danger: #a6402f;
+    --muted: #6b6f68;
+    --warn: #b5822f;
+    --warn-soft: #fbf1e2;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    min-height: 100vh;
+  }
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 28px 20px 80px; }
+  header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 14px;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  h1 { font-size: 24px; margin: 0; font-weight: 700; }
+  .status { font-size: 12px; color: var(--muted); }
+  .tabs { display: flex; gap: 6px; margin-bottom: 22px; border-bottom: 1px solid var(--line); }
+  .tab-btn {
+    background: transparent; border: none; border-bottom: 3px solid transparent;
+    padding: 10px 16px; font-size: 14px; font-weight: 600; color: var(--muted); cursor: pointer;
+  }
+  .tab-btn.active { color: var(--ink); border-bottom-color: var(--accent); }
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 18px; margin-bottom: 16px; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--muted); }
+  input[type=text], input[type=date], input[type=time], select {
+    border: 1px solid var(--line); background: var(--paper); border-radius: 6px;
+    padding: 8px 10px; font-size: 14px; color: var(--ink); font-family: inherit;
+  }
+  input:focus, select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  button { cursor: pointer; border: none; border-radius: 6px; padding: 9px 16px; font-size: 13.5px; font-weight: 600; font-family: inherit; }
+  .btn-primary { background: var(--ink); color: var(--paper); }
+  .btn-primary:hover { opacity: 0.85; }
+  .btn-ghost { background: transparent; border: 1px solid var(--line); color: var(--ink); }
+  .btn-ghost:hover { background: var(--accent-soft); }
+  .btn-danger { background: transparent; color: var(--danger); border: 1px solid transparent; padding: 5px 10px; font-size: 12px; }
+  .btn-danger:hover { background: #f6e9e6; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th { text-align: left; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  td { padding: 8px; border-bottom: 1px solid var(--line); }
+  tr:last-child td { border-bottom: none; }
+
+  .kawan-group { margin-bottom: 18px; }
+  .kawan-group h3 {
+    font-size: 14px; margin: 0 0 8px; padding: 4px 10px;
+    background: var(--accent-soft); border-radius: 6px; display: inline-block; color: var(--accent);
+  }
+  .badge { font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 20px; }
+  .badge.present { background: var(--accent-soft); color: var(--accent); }
+  .badge.absent { background: var(--warn-soft); color: var(--warn); }
+  .summary-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 700px) { .summary-cols { grid-template-columns: 1fr; } }
+  .empty { color: var(--muted); font-size: 13px; padding: 12px 0; }
+  .count-pill { font-size: 12px; color: var(--muted); margin-left: 6px; }
+
+  /* Check-in specific */
+  .checkin-hero {
+    text-align: center;
+    padding: 30px 20px;
+  }
+  .checkin-hero .service-name { font-size: 26px; font-weight: 800; margin: 0 0 4px; }
+  .checkin-hero .service-date { font-size: 14px; color: var(--muted); margin-bottom: 22px; }
+  .checkin-search {
+    max-width: 420px;
+    margin: 0 auto 20px;
+  }
+  .checkin-search input {
+    width: 100%;
+    font-size: 18px;
+    padding: 14px 16px;
+    text-align: center;
+  }
+  .match-list {
+    max-width: 480px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .match-card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .match-card .info .name { font-weight: 700; font-size: 15px; }
+  .match-card .info .kawan { font-size: 12px; color: var(--muted); }
+  .btn-present {
+    background: var(--accent);
+    color: white;
+    padding: 10px 18px;
+    font-size: 13.5px;
+    white-space: nowrap;
+  }
+  .btn-present:hover { opacity: 0.88; }
+  .btn-present:disabled { background: var(--line); color: var(--muted); cursor: default; }
+  .confirm-banner {
+    max-width: 480px;
+    margin: 0 auto 18px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-radius: 10px;
+    padding: 16px;
+    text-align: center;
+    font-weight: 700;
+    font-size: 15px;
+  }
+  .no-active {
+    text-align: center;
+    color: var(--muted);
+    padding: 50px 20px;
+    font-size: 15px;
+  }
+  .history-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--line);
+    cursor: pointer;
+    border-radius: 6px;
+  }
+  .history-row:last-child { border-bottom: none; }
+  .history-row:hover { background: var(--accent-soft); }
+  .history-row.selected { background: var(--accent-soft); }
+  .history-row .hr-info .hr-name { font-weight: 700; font-size: 14px; }
+  .history-row .hr-info .hr-date { font-size: 12px; color: var(--muted); }
+  .history-row .hr-counts { display: flex; gap: 8px; flex-shrink: 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Attendance</h1>
+    <span class="status" id="statusLine">Loading...</span>
+  </header>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="checkin">Check-In</button>
+    <button class="tab-btn" data-tab="admin">Admin</button>
+    <button class="tab-btn" data-tab="reports">Reports</button>
+  </div>
+
+  <!-- CHECK-IN (attendee-facing) -->
+  <div class="panel active" id="panel-checkin">
+    <div id="noActiveMsg" class="no-active" style="display:none;">
+      No active service right now. Please check with the admin.
+    </div>
+    <div id="checkinArea" style="display:none;">
+      <div class="checkin-hero">
+        <p class="service-name" id="ciServiceName"></p>
+        <p class="service-date" id="ciServiceDate"></p>
+        <div class="checkin-search">
+          <input type="text" id="ciSearch" placeholder="Enter your Member ID or type your name">
+        </div>
+      </div>
+      <div id="ciConfirm"></div>
+      <div class="match-list" id="ciResults"></div>
+    </div>
+    <div class="summary-cols" id="liveRosterArea" style="margin-top:26px; display:none;">
+      <div class="card">
+        <h3 style="margin-top:0;">Present <span class="count-pill" id="livePresentCount"></span></h3>
+        <table><thead><tr><th>Name</th><th>Kawan</th><th>Time In</th></tr></thead>
+        <tbody id="livePresentBody"></tbody></table>
+        <div class="empty" id="livePresentEmpty" style="display:none;">No one has checked in yet.</div>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0;">Absent <span class="count-pill" id="liveAbsentCount"></span></h3>
+        <table><thead><tr><th>Name</th><th>Kawan</th></tr></thead>
+        <tbody id="liveAbsentBody"></tbody></table>
+        <div class="empty" id="liveAbsentEmpty" style="display:none;">Everyone has checked in.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ADMIN -->
+  <div class="panel" id="panel-admin">
+    <div class="card">
+      <h3 style="margin-top:0;">Active Service</h3>
+      <div class="row">
+        <div class="field">
+          <label for="sName">Service Name</label>
+          <select id="sName"></select>
+        </div>
+        <button class="btn-ghost" id="addServiceNameBtn" type="button">+ New Name</button>
+        <div class="field">
+          <label for="sDate">Service Date</label>
+          <input type="date" id="sDate">
+        </div>
+        <button class="btn-primary" id="startSessionBtn">Set as Active</button>
+        <button class="btn-ghost" id="endSessionBtn">End Active Session</button>
+      </div>
+      <p class="status" id="activeServiceStatus" style="margin-top:10px;"></p>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-top:0;">Add Member</h3>
+      <div class="row">
+        <div class="field">
+          <label for="mName">Name</label>
+          <input type="text" id="mName" placeholder="Full name">
+        </div>
+        <div class="field">
+          <label for="mKawan">Kawan Name</label>
+          <input type="text" id="mKawan" list="kawanList" placeholder="e.g. Kawan A">
+          <datalist id="kawanList"></datalist>
+        </div>
+        <button class="btn-primary" id="addMemberBtn">+ Add member</button>
+      </div>
+    </div>
+    <div id="membersList"></div>
+  </div>
+
+  <!-- REPORTS -->
+  <div class="panel" id="panel-reports">
+    <div class="card">
+      <h3 style="margin-top:0;">Previous Services</h3>
+      <div id="serviceHistoryList"></div>
+    </div>
+    <div class="card">
+      <div class="row">
+        <div class="field">
+          <label for="rService">Service / Date</label>
+          <select id="rService"></select>
+        </div>
+        <div class="field">
+          <label for="rKawan">Kawan</label>
+          <select id="rKawan"><option value="">All Kawans</option></select>
+        </div>
+        <button class="btn-ghost" id="runReportBtn">Refresh</button>
+      </div>
+    </div>
+    <div class="summary-cols">
+      <div class="card">
+        <h3 style="margin-top:0;">Present <span class="count-pill" id="presentCount"></span></h3>
+        <table><thead><tr><th>Name</th><th>Kawan</th><th>Time In</th></tr></thead>
+        <tbody id="presentBody"></tbody></table>
+        <div class="empty" id="presentEmpty" style="display:none;">No one recorded present yet.</div>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0;">Absent <span class="count-pill" id="absentCount"></span></h3>
+        <table><thead><tr><th>Name</th><th>Kawan</th></tr></thead>
+        <tbody id="absentBody"></tbody></table>
+        <div class="empty" id="absentEmpty" style="display:none;">Everyone accounted for.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ====== FIREBASE CONFIG — fill this in ======
+// 1. Go to https://console.firebase.google.com, create a free project
+// 2. Build > Realtime Database > Create Database > Start in TEST MODE
+// 3. Copy the database URL shown (looks like https://your-project-default-rtdb.firebaseio.com)
+const FIREBASE_DB_URL = 'PASTE_YOUR_FIREBASE_DATABASE_URL_HERE';
+// =============================================
+
+let members = [];        // { id, name, kawan, code }
+let attendance = [];      // { id, memberId, memberName, kawan, serviceName, serviceDate, timeIn }
+let activeService = null; // { serviceName, serviceDate } or null
+let serviceNames = [];    // ["Sunday Service", "Youth Service", ...]
+
+const statusLine = document.getElementById('statusLine');
+
+function configMissing() { return !FIREBASE_DB_URL || FIREBASE_DB_URL.startsWith('PASTE_'); }
+function uid(prefix) { return prefix + '_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7); }
+function genCode() { return String(Math.floor(1000 + Math.random() * 9000)); }
+function escapeHtml(str) { const div = document.createElement('div'); div.textContent = str || ''; return div.innerHTML; }
+
+async function fbGetArr(path) {
+  const res = await fetch(`${FIREBASE_DB_URL}/${path}.json`);
+  if (!res.ok) throw new Error('load failed: ' + path);
+  const data = await res.json();
+  return Array.isArray(data) ? data.filter(Boolean) : (data ? Object.values(data) : []);
+}
+async function fbPutArr(path, arr) {
+  const res = await fetch(`${FIREBASE_DB_URL}/${path}.json`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(arr) });
+  if (!res.ok) throw new Error('save failed: ' + path);
+}
+async function fbGetObj(path) {
+  const res = await fetch(`${FIREBASE_DB_URL}/${path}.json`);
+  if (!res.ok) throw new Error('load failed: ' + path);
+  return await res.json();
+}
+async function fbPutObj(path, obj) {
+  const res = await fetch(`${FIREBASE_DB_URL}/${path}.json`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(obj) });
+  if (!res.ok) throw new Error('save failed: ' + path);
+}
+
+async function loadAll() {
+  if (configMissing()) {
+    statusLine.textContent = 'Not configured — add your Firebase Database URL at the top of the script.';
+    renderCheckin(); renderMembers(); renderKawanDatalist(); renderReportOptions(); renderServiceNameOptions();
+    return;
+  }
+  statusLine.textContent = 'Loading...';
+  try {
+    members = await fbGetArr('members');
+    attendance = await fbGetArr('attendance');
+    activeService = await fbGetObj('activeService');
+    serviceNames = await fbGetArr('serviceNames');
+    statusLine.textContent = 'Synced — data stored on Firebase.';
+  } catch (e) {
+    statusLine.textContent = 'Could not load data. Check your Database URL and connection.';
+  }
+  renderCheckin(); renderMembers(); renderKawanDatalist(); renderReportOptions(); renderActiveServiceStatus(); renderServiceNameOptions();
+}
+
+async function saveMembers() {
+  if (configMissing()) return;
+  try { await fbPutArr('members', members); statusLine.textContent = 'Synced — data stored on Firebase.'; }
+  catch (e) { statusLine.textContent = 'Could not save members.'; }
+}
+async function saveAttendanceData() {
+  if (configMissing()) return;
+  try { await fbPutArr('attendance', attendance); statusLine.textContent = 'Synced — data stored on Firebase.'; }
+  catch (e) { statusLine.textContent = 'Could not save attendance.'; }
+}
+async function saveActiveService() {
+  if (configMissing()) return;
+  try { await fbPutObj('activeService', activeService); statusLine.textContent = 'Synced — data stored on Firebase.'; }
+  catch (e) { statusLine.textContent = 'Could not save active service.'; }
+}
+async function saveServiceNames() {
+  if (configMissing()) return;
+  try { await fbPutArr('serviceNames', serviceNames); statusLine.textContent = 'Synced — data stored on Firebase.'; }
+  catch (e) { statusLine.textContent = 'Could not save service names.'; }
+}
+
+// ---------- Tabs ----------
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
+    if (btn.dataset.tab === 'reports') renderReportOptions();
+    if (btn.dataset.tab === 'checkin') renderCheckin();
+  });
+});
+
+// ---------- Check-In (attendee-facing) ----------
+function renderCheckin() {
+  const noActive = document.getElementById('noActiveMsg');
+  const area = document.getElementById('checkinArea');
+  if (!activeService || !activeService.serviceName) {
+    noActive.style.display = 'block';
+    area.style.display = 'none';
+    renderLiveRoster();
+    return;
+  }
+  noActive.style.display = 'none';
+  area.style.display = 'block';
+  document.getElementById('ciServiceName').textContent = activeService.serviceName;
+  document.getElementById('ciServiceDate').textContent = activeService.serviceDate;
+  document.getElementById('ciResults').innerHTML = '';
+  document.getElementById('ciConfirm').innerHTML = '';
+  document.getElementById('ciSearch').value = '';
+  renderLiveRoster();
+}
+
+function renderLiveRoster() {
+  const area = document.getElementById('liveRosterArea');
+  if (!activeService || !activeService.serviceName) { area.style.display = 'none'; return; }
+  area.style.display = 'grid';
+  const presentRecords = attendance.filter(a => a.serviceName === activeService.serviceName && a.serviceDate === activeService.serviceDate);
+  const presentIds = new Set(presentRecords.map(a => a.memberId));
+  const absentMembers = members.filter(m => !presentIds.has(m.id));
+  document.getElementById('livePresentBody').innerHTML = presentRecords.map(a => `<tr><td>${escapeHtml(a.memberName)}</td><td>${escapeHtml(a.kawan)}</td><td>${escapeHtml(a.timeIn || '—')}</td></tr>`).join('');
+  document.getElementById('liveAbsentBody').innerHTML = absentMembers.map(m => `<tr><td>${escapeHtml(m.name)}</td><td>${escapeHtml(m.kawan || 'Unassigned')}</td></tr>`).join('');
+  document.getElementById('livePresentEmpty').style.display = presentRecords.length ? 'none' : 'block';
+  document.getElementById('liveAbsentEmpty').style.display = absentMembers.length ? 'none' : 'block';
+  document.getElementById('livePresentCount').textContent = presentRecords.length + ' present';
+  document.getElementById('liveAbsentCount').textContent = absentMembers.length + ' absent';
+}
+
+function findMemberMatches(query) {
+  const q = query.trim().toLowerCase();
+  if (!q) return [];
+  const exactCode = members.find(m => m.code === q.trim());
+  if (exactCode) return [exactCode];
+  return members.filter(m => m.name.toLowerCase().includes(q)).slice(0, 8);
+}
+
+function isAlreadyPresent(memberId) {
+  if (!activeService) return null;
+  return attendance.find(a => a.memberId === memberId && a.serviceName === activeService.serviceName && a.serviceDate === activeService.serviceDate);
+}
+
+function renderCheckinResults() {
+  const query = document.getElementById('ciSearch').value;
+  const results = findMemberMatches(query);
+  const resultsEl = document.getElementById('ciResults');
+  if (!query.trim()) { resultsEl.innerHTML = ''; return; }
+  if (results.length === 0) {
+    resultsEl.innerHTML = '<div class="empty" style="text-align:center;">No matching member found. Check your ID or spelling.</div>';
+    return;
+  }
+  resultsEl.innerHTML = results.map(m => {
+    const existing = isAlreadyPresent(m.id);
+    return `
+    <div class="match-card">
+      <div class="info">
+        <div class="name">${escapeHtml(m.name)}</div>
+        <div class="kawan">${escapeHtml(m.kawan || 'Unassigned')} · ID ${escapeHtml(m.code)}</div>
+      </div>
+      <button class="btn-present" data-member="${m.id}" ${existing ? 'disabled' : ''}>
+        ${existing ? '✓ Already In (' + escapeHtml(existing.timeIn) + ')' : "✅ I'm Present"}
+      </button>
+    </div>`;
+  }).join('');
+
+  resultsEl.querySelectorAll('.btn-present:not([disabled])').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const memberId = btn.dataset.member;
+      const member = members.find(m => m.id === memberId);
+      if (!member || !activeService) return;
+      const now = new Date();
+      const timeIn = now.toTimeString().slice(0,5);
+      attendance.push({
+        id: uid('a'), memberId, memberName: member.name, kawan: member.kawan || 'Unassigned',
+        serviceName: activeService.serviceName, serviceDate: activeService.serviceDate, timeIn
+      });
+      document.getElementById('ciConfirm').innerHTML = `<div class="confirm-banner">✅ ${escapeHtml(member.name)}, you're marked present at ${timeIn}!</div>`;
+      document.getElementById('ciSearch').value = '';
+      document.getElementById('ciResults').innerHTML = '';
+      statusLine.textContent = 'Saving...';
+      await saveAttendanceData();
+      renderLiveRoster();
+      setTimeout(() => { document.getElementById('ciConfirm').innerHTML = ''; }, 4000);
+    });
+  });
+}
+document.getElementById('ciSearch').addEventListener('input', renderCheckinResults);
+
+// ---------- Admin: Active Service ----------
+function renderServiceNameOptions() {
+  const sel = document.getElementById('sName');
+  const current = sel.value;
+  if (serviceNames.length === 0) {
+    sel.innerHTML = '<option value="">— No service names yet, click + New Name —</option>';
+    return;
+  }
+  sel.innerHTML = [...serviceNames].sort().map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
+  if (current && serviceNames.includes(current)) sel.value = current;
+}
+document.getElementById('addServiceNameBtn').addEventListener('click', async () => {
+  const name = (prompt('New service name (e.g. Sunday Service, Youth Service):') || '').trim();
+  if (!name) return;
+  if (serviceNames.some(n => n.toLowerCase() === name.toLowerCase())) {
+    alert('That service name already exists.');
+    document.getElementById('sName').value = name;
+    return;
+  }
+  serviceNames.push(name);
+  renderServiceNameOptions();
+  document.getElementById('sName').value = name;
+  statusLine.textContent = 'Saving...';
+  await saveServiceNames();
+});
+function renderActiveServiceStatus() {
+  const el = document.getElementById('activeServiceStatus');
+  if (activeService && activeService.serviceName) {
+    el.textContent = `Currently active: ${activeService.serviceName} — ${activeService.serviceDate}`;
+  } else {
+    el.textContent = 'No active session right now.';
+  }
+}
+document.getElementById('startSessionBtn').addEventListener('click', async () => {
+  const serviceName = document.getElementById('sName').value.trim();
+  const serviceDate = document.getElementById('sDate').value;
+  if (!serviceName || !serviceDate) { alert('Choose a service name (or add one) and pick a date.'); return; }
+  activeService = { serviceName, serviceDate };
+  renderActiveServiceStatus();
+  renderCheckin();
+  statusLine.textContent = 'Saving...';
+  await saveActiveService();
+});
+document.getElementById('endSessionBtn').addEventListener('click', async () => {
+  activeService = null;
+  renderActiveServiceStatus();
+  renderCheckin();
+  statusLine.textContent = 'Saving...';
+  await saveActiveService();
+});
+
+// ---------- Admin: Members ----------
+function kawanGroups() {
+  const groups = {};
+  members.forEach(m => { const k = m.kawan || 'Unassigned'; (groups[k] = groups[k] || []).push(m); });
+  return groups;
+}
+function renderMembers() {
+  const groups = kawanGroups();
+  const container = document.getElementById('membersList');
+  const kawanNames = Object.keys(groups).sort();
+  if (kawanNames.length === 0) { container.innerHTML = '<div class="empty">No members yet. Add your first one above.</div>'; return; }
+  container.innerHTML = kawanNames.map(k => `
+    <div class="card kawan-group">
+      <h3>${escapeHtml(k)} <span class="count-pill">${groups[k].length}</span></h3>
+      <table><tbody>
+        ${groups[k].map(m => `
+          <tr>
+            <td>${escapeHtml(m.name)}</td>
+            <td style="color:var(--muted); font-size:12.5px;">ID ${escapeHtml(m.code)}</td>
+            <td style="text-align:right;"><button class="btn-danger" data-id="${m.id}">Remove</button></td>
+          </tr>
+        `).join('')}
+      </tbody></table>
+    </div>
+  `).join('');
+  container.querySelectorAll('.btn-danger').forEach(b => {
+    b.addEventListener('click', async () => {
+      if (!confirm('Remove this member?')) return;
+      members = members.filter(m => m.id !== b.dataset.id);
+      renderMembers(); renderKawanDatalist(); renderLiveRoster();
+      statusLine.textContent = 'Saving...';
+      await saveMembers();
+    });
+  });
+}
+function renderKawanDatalist() {
+  const names = [...new Set(members.map(m => m.kawan).filter(Boolean))].sort();
+  document.getElementById('kawanList').innerHTML = names.map(n => `<option value="${escapeHtml(n)}">`).join('');
+}
+document.getElementById('addMemberBtn').addEventListener('click', async () => {
+  const name = document.getElementById('mName').value.trim();
+  const kawan = document.getElementById('mKawan').value.trim();
+  if (!name) return;
+  let code;
+  do { code = genCode(); } while (members.some(m => m.code === code));
+  members.push({ id: uid('m'), name, kawan, code });
+  document.getElementById('mName').value = '';
+  document.getElementById('mKawan').value = '';
+  renderMembers(); renderKawanDatalist(); renderLiveRoster();
+  statusLine.textContent = 'Saving...';
+  await saveMembers();
+});
+
+// ---------- Reports ----------
+function allSessions() {
+  const sessions = {};
+  attendance.forEach(a => {
+    const key = a.serviceName + '||' + a.serviceDate;
+    if (!sessions[key]) sessions[key] = { serviceName: a.serviceName, serviceDate: a.serviceDate, presentIds: new Set() };
+    sessions[key].presentIds.add(a.memberId);
+  });
+  return Object.values(sessions).sort((a,b) => b.serviceDate.localeCompare(a.serviceDate));
+}
+
+function renderServiceHistory() {
+  const sessions = allSessions();
+  const container = document.getElementById('serviceHistoryList');
+  if (sessions.length === 0) { container.innerHTML = '<div class="empty">No services recorded yet. Attendance will appear here once a session has check-ins.</div>'; return; }
+  container.innerHTML = sessions.map(s => {
+    const totalMembers = members.length;
+    const presentCount = s.presentIds.size;
+    const absentCount = Math.max(totalMembers - presentCount, 0);
+    return `
+    <div class="history-row" data-service="${escapeHtml(s.serviceName)}" data-date="${s.serviceDate}">
+      <div class="hr-info">
+        <div class="hr-name">${escapeHtml(s.serviceName)}</div>
+        <div class="hr-date">${s.serviceDate}</div>
+      </div>
+      <div class="hr-counts">
+        <span class="badge present">${presentCount} present</span>
+        <span class="badge absent">${absentCount} absent</span>
+      </div>
+    </div>`;
+  }).join('');
+  container.querySelectorAll('.history-row').forEach(row => {
+    row.addEventListener('click', () => {
+      const serviceName = row.dataset.service;
+      const serviceDate = row.dataset.date;
+      document.getElementById('rService').value = serviceName + '||' + serviceDate;
+      document.getElementById('rKawan').value = '';
+      container.querySelectorAll('.history-row').forEach(r => r.classList.remove('selected'));
+      row.classList.add('selected');
+      runReport(serviceName, serviceDate, '');
+    });
+  });
+}
+
+function renderReportOptions() {
+  const sessions = allSessions();
+  const sel = document.getElementById('rService');
+  sel.innerHTML = sessions.map(s => `<option value="${escapeHtml(s.serviceName)}||${s.serviceDate}">${escapeHtml(s.serviceName)} — ${s.serviceDate}</option>`).join('');
+  const kawanNames = [...new Set(members.map(m => m.kawan || 'Unassigned'))].sort();
+  document.getElementById('rKawan').innerHTML = '<option value="">All Kawans</option>' + kawanNames.map(k => `<option value="${escapeHtml(k)}">${escapeHtml(k)}</option>`).join('');
+  renderServiceHistory();
+  if (sel.value) triggerReportFromSelects();
+}
+
+function runReport(serviceName, serviceDate, kawanFilter) {
+  const presentRecords = attendance.filter(a => a.serviceName === serviceName && a.serviceDate === serviceDate && (!kawanFilter || a.kawan === kawanFilter));
+  const presentIds = new Set(presentRecords.map(a => a.memberId));
+  const relevantMembers = members.filter(m => !kawanFilter || (m.kawan || 'Unassigned') === kawanFilter);
+  const absentMembers = relevantMembers.filter(m => !presentIds.has(m.id));
+  document.getElementById('presentBody').innerHTML = presentRecords.map(a => `<tr><td>${escapeHtml(a.memberName)}</td><td>${escapeHtml(a.kawan)}</td><td>${escapeHtml(a.timeIn || '—')}</td></tr>`).join('');
+  document.getElementById('absentBody').innerHTML = absentMembers.map(m => `<tr><td>${escapeHtml(m.name)}</td><td>${escapeHtml(m.kawan || 'Unassigned')}</td></tr>`).join('');
+  document.getElementById('presentEmpty').style.display = presentRecords.length ? 'none' : 'block';
+  document.getElementById('absentEmpty').style.display = absentMembers.length ? 'none' : 'block';
+  document.getElementById('presentCount').textContent = presentRecords.length + ' present';
+  document.getElementById('absentCount').textContent = absentMembers.length + ' absent';
+}
+
+function triggerReportFromSelects() {
+  const val = document.getElementById('rService').value;
+  if (!val) return;
+  const [serviceName, serviceDate] = val.split('||');
+  const kawanFilter = document.getElementById('rKawan').value;
+  runReport(serviceName, serviceDate, kawanFilter);
+  document.querySelectorAll('.history-row').forEach(r => r.classList.remove('selected'));
+  const match = [...document.querySelectorAll('.history-row')].find(r => r.dataset.service === serviceName && r.dataset.date === serviceDate);
+  if (match) match.classList.add('selected');
+}
+document.getElementById('rService').addEventListener('change', triggerReportFromSelects);
+document.getElementById('rKawan').addEventListener('change', triggerReportFromSelects);
+document.getElementById('runReportBtn').addEventListener('click', triggerReportFromSelects);
+
+loadAll();
+</script>
+</body>
+</html>
