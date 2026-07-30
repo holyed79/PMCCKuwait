@@ -1,7 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>const FIREBASE_DB_URL = "https://your-project-name-default-rtdb.firebaseio.com";
+<head>
 <meta charset="UTF-8">
+<!-- Added mobile viewport scaling -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Attendance</title>
 <style>
   :root {
@@ -23,132 +25,144 @@
     color: var(--ink);
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     min-height: 100vh;
+    -webkit-text-size-adjust: 100%;
   }
-  .wrap { max-width: 1000px; margin: 0 auto; padding: 28px 20px 80px; }
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 20px 12px 80px; }
   header {
     display: flex;
     align-items: baseline;
     justify-content: space-between;
     border-bottom: 2px solid var(--ink);
-    padding-bottom: 14px;
-    margin-bottom: 18px;
+    padding-bottom: 12px;
+    margin-bottom: 16px;
     flex-wrap: wrap;
     gap: 8px;
   }
-  h1 { font-size: 24px; margin: 0; font-weight: 700; }
-  .status { font-size: 12px; color: var(--muted); }
-  .tabs { display: flex; gap: 6px; margin-bottom: 22px; border-bottom: 1px solid var(--line); }
+  h1 { font-size: 22px; margin: 0; font-weight: 700; }
+  .status { font-size: 11px; color: var(--muted); word-break: break-all; }
+  
+  /* Tabs optimized to scroll horizontally on small screens if needed */
+  .tabs { 
+    display: flex; 
+    gap: 4px; 
+    margin-bottom: 18px; 
+    border-bottom: 1px solid var(--line); 
+    overflow-x: auto; 
+    white-space: nowrap; 
+    -webkit-overflow-scrolling: touch;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
   .tab-btn {
     background: transparent; border: none; border-bottom: 3px solid transparent;
-    padding: 10px 16px; font-size: 14px; font-weight: 600; color: var(--muted); cursor: pointer;
+    padding: 8px 14px; font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer;
   }
   .tab-btn.active { color: var(--ink); border-bottom-color: var(--accent); }
   .panel { display: none; }
   .panel.active { display: block; }
 
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 18px; margin-bottom: 16px; }
-  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
-  .field { display: flex; flex-direction: column; gap: 4px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px; margin-bottom: 14px; overflow-x: auto; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; }
+  .field { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 130px; }
   .field label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--muted); }
   input[type=text], input[type=date], input[type=time], select {
     border: 1px solid var(--line); background: var(--paper); border-radius: 6px;
-    padding: 8px 10px; font-size: 14px; color: var(--ink); font-family: inherit;
+    padding: 8px 10px; font-size: 14px; color: var(--ink); font-family: inherit; width: 100%;
   }
   input:focus, select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
-  button { cursor: pointer; border: none; border-radius: 6px; padding: 9px 16px; font-size: 13.5px; font-weight: 600; font-family: inherit; }
+  button { cursor: pointer; border: none; border-radius: 6px; padding: 9px 14px; font-size: 13px; font-weight: 600; font-family: inherit; }
   .btn-primary { background: var(--ink); color: var(--paper); }
   .btn-primary:hover { opacity: 0.85; }
   .btn-ghost { background: transparent; border: 1px solid var(--line); color: var(--ink); }
   .btn-ghost:hover { background: var(--accent-soft); }
-  .btn-danger { background: transparent; color: var(--danger); border: 1px solid transparent; padding: 5px 10px; font-size: 12px; }
+  .btn-danger { background: transparent; color: var(--danger); border: 1px solid transparent; padding: 4px 8px; font-size: 12px; }
   .btn-danger:hover { background: #f6e9e6; }
 
-  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
-  th { text-align: left; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; padding: 6px 8px; border-bottom: 1px solid var(--line); }
-  td { padding: 8px; border-bottom: 1px solid var(--line); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; white-space: nowrap; }
+  th { text-align: left; color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px; padding: 6px; border-bottom: 1px solid var(--line); }
+  td { padding: 8px 6px; border-bottom: 1px solid var(--line); }
   tr:last-child td { border-bottom: none; }
 
-  .kawan-group { margin-bottom: 18px; }
+  .kawan-group { margin-bottom: 14px; }
   .kawan-group h3 {
-    font-size: 14px; margin: 0 0 8px; padding: 4px 10px;
+    font-size: 13px; margin: 0 0 6px; padding: 4px 8px;
     background: var(--accent-soft); border-radius: 6px; display: inline-block; color: var(--accent);
   }
-  .badge { font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 20px; }
+  .badge { font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 20px; }
   .badge.present { background: var(--accent-soft); color: var(--accent); }
   .badge.absent { background: var(--warn-soft); color: var(--warn); }
-  .summary-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-  @media (max-width: 700px) { .summary-cols { grid-template-columns: 1fr; } }
-  .empty { color: var(--muted); font-size: 13px; padding: 12px 0; }
-  .count-pill { font-size: 12px; color: var(--muted); margin-left: 6px; }
+  .summary-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 768px) { .summary-cols { grid-template-columns: 1fr; } }
+  .empty { color: var(--muted); font-size: 12px; padding: 10px 0; }
+  .count-pill { font-size: 11px; color: var(--muted); margin-left: 4px; }
 
   /* Check-in specific */
   .checkin-hero {
     text-align: center;
-    padding: 30px 20px;
+    padding: 20px 10px;
   }
-  .checkin-hero .service-name { font-size: 26px; font-weight: 800; margin: 0 0 4px; }
-  .checkin-hero .service-date { font-size: 14px; color: var(--muted); margin-bottom: 22px; }
+  .checkin-hero .service-name { font-size: 22px; font-weight: 800; margin: 0 0 4px; }
+  .checkin-hero .service-date { font-size: 13px; color: var(--muted); margin-bottom: 16px; }
   .checkin-search {
-    max-width: 420px;
-    margin: 0 auto 20px;
+    max-width: 100%;
+    margin: 0 auto 16px;
   }
   .checkin-search input {
     width: 100%;
-    font-size: 18px;
-    padding: 14px 16px;
+    font-size: 16px;
+    padding: 12px 14px;
     text-align: center;
   }
   .match-list {
-    max-width: 480px;
+    max-width: 100%;
     margin: 0 auto;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 8px;
   }
   .match-card {
     background: var(--card);
     border: 1px solid var(--line);
     border-radius: 10px;
-    padding: 14px 18px;
+    padding: 12px 14px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 10px;
+    gap: 8px;
   }
-  .match-card .info .name { font-weight: 700; font-size: 15px; }
-  .match-card .info .kawan { font-size: 12px; color: var(--muted); }
+  .match-card .info .name { font-weight: 700; font-size: 14px; }
+  .match-card .info .kawan { font-size: 11px; color: var(--muted); }
   .btn-present {
     background: var(--accent);
     color: white;
-    padding: 10px 18px;
-    font-size: 13.5px;
+    padding: 8px 12px;
+    font-size: 12.5px;
     white-space: nowrap;
   }
   .btn-present:hover { opacity: 0.88; }
   .btn-present:disabled { background: var(--line); color: var(--muted); cursor: default; }
   .confirm-banner {
-    max-width: 480px;
-    margin: 0 auto 18px;
+    max-width: 100%;
+    margin: 0 auto 14px;
     background: var(--accent-soft);
     color: var(--accent);
     border-radius: 10px;
-    padding: 16px;
+    padding: 12px;
     text-align: center;
     font-weight: 700;
-    font-size: 15px;
+    font-size: 14px;
   }
   .no-active {
     text-align: center;
     color: var(--muted);
-    padding: 50px 20px;
-    font-size: 15px;
+    padding: 40px 15px;
+    font-size: 14px;
   }
   .history-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 10px;
-    padding: 10px 12px;
+    gap: 8px;
+    padding: 10px;
     border-bottom: 1px solid var(--line);
     cursor: pointer;
     border-radius: 6px;
@@ -156,9 +170,9 @@
   .history-row:last-child { border-bottom: none; }
   .history-row:hover { background: var(--accent-soft); }
   .history-row.selected { background: var(--accent-soft); }
-  .history-row .hr-info .hr-name { font-weight: 700; font-size: 14px; }
-  .history-row .hr-info .hr-date { font-size: 12px; color: var(--muted); }
-  .history-row .hr-counts { display: flex; gap: 8px; flex-shrink: 0; }
+  .history-row .hr-info .hr-name { font-weight: 700; font-size: 13px; }
+  .history-row .hr-info .hr-date { font-size: 11px; color: var(--muted); }
+  .history-row .hr-counts { display: flex; gap: 6px; flex-shrink: 0; }
 </style>
 </head>
 <body>
@@ -184,24 +198,24 @@
         <p class="service-name" id="ciServiceName"></p>
         <p class="service-date" id="ciServiceDate"></p>
         <div class="checkin-search">
-          <input type="text" id="ciSearch" placeholder="Enter your Member ID or type your name">
+          <input type="text" id="ciSearch" placeholder="Enter Member ID or Name">
         </div>
       </div>
       <div id="ciConfirm"></div>
       <div class="match-list" id="ciResults"></div>
     </div>
-    <div class="summary-cols" id="liveRosterArea" style="margin-top:26px; display:none;">
+    <div class="summary-cols" id="liveRosterArea" style="margin-top:20px; display:none;">
       <div class="card">
         <h3 style="margin-top:0;">Present <span class="count-pill" id="livePresentCount"></span></h3>
-        <table><thead><tr><th>Name</th><th>Kawan</th><th>Time In</th></tr></thead>
+        <table><thead><tr><th>Name</th><th>Kawan</th><th>Time</th></tr></thead>
         <tbody id="livePresentBody"></tbody></table>
-        <div class="empty" id="livePresentEmpty" style="display:none;">No one has checked in yet.</div>
+        <div class="empty" id="livePresentEmpty" style="display:none;">No one checked in yet.</div>
       </div>
       <div class="card">
         <h3 style="margin-top:0;">Absent <span class="count-pill" id="liveAbsentCount"></span></h3>
         <table><thead><tr><th>Name</th><th>Kawan</th></tr></thead>
         <tbody id="liveAbsentBody"></tbody></table>
-        <div class="empty" id="liveAbsentEmpty" style="display:none;">Everyone has checked in.</div>
+        <div class="empty" id="liveAbsentEmpty" style="display:none;">Everyone checked in.</div>
       </div>
     </div>
   </div>
@@ -215,15 +229,15 @@
           <label for="sName">Service Name</label>
           <select id="sName"></select>
         </div>
-        <button class="btn-ghost" id="addServiceNameBtn" type="button">+ New Name</button>
+        <button class="btn-ghost" id="addServiceNameBtn" type="button">+ New</button>
         <div class="field">
           <label for="sDate">Service Date</label>
           <input type="date" id="sDate">
         </div>
-        <button class="btn-primary" id="startSessionBtn">Set as Active</button>
-        <button class="btn-ghost" id="endSessionBtn">End Active Session</button>
+        <button class="btn-primary" id="startSessionBtn" style="width:100%;">Set Active</button>
+        <button class="btn-ghost" id="endSessionBtn" style="width:100%;">End Session</button>
       </div>
-      <p class="status" id="activeServiceStatus" style="margin-top:10px;"></p>
+      <p class="status" id="activeServiceStatus" style="margin-top:8px;"></p>
     </div>
 
     <div class="card">
@@ -238,7 +252,7 @@
           <input type="text" id="mKawan" list="kawanList" placeholder="e.g. Kawan A">
           <datalist id="kawanList"></datalist>
         </div>
-        <button class="btn-primary" id="addMemberBtn">+ Add member</button>
+        <button class="btn-primary" id="addMemberBtn" style="width:100%;">+ Add Member</button>
       </div>
     </div>
     <div id="membersList"></div>
@@ -260,15 +274,15 @@
           <label for="rKawan">Kawan</label>
           <select id="rKawan"><option value="">All Kawans</option></select>
         </div>
-        <button class="btn-ghost" id="runReportBtn">Refresh</button>
+        <button class="btn-ghost" id="runReportBtn" style="width:100%;">Refresh</button>
       </div>
     </div>
     <div class="summary-cols">
       <div class="card">
         <h3 style="margin-top:0;">Present <span class="count-pill" id="presentCount"></span></h3>
-        <table><thead><tr><th>Name</th><th>Kawan</th><th>Time In</th></tr></thead>
+        <table><thead><tr><th>Name</th><th>Kawan</th><th>Time</th></tr></thead>
         <tbody id="presentBody"></tbody></table>
-        <div class="empty" id="presentEmpty" style="display:none;">No one recorded present yet.</div>
+        <div class="empty" id="presentEmpty" style="display:none;">No one recorded present.</div>
       </div>
       <div class="card">
         <h3 style="margin-top:0;">Absent <span class="count-pill" id="absentCount"></span></h3>
@@ -281,17 +295,12 @@
 </div>
 
 <script>
-// ====== FIREBASE CONFIG — fill this in ======
-// 1. Go to https://console.firebase.google.com, create a free project
-// 2. Build > Realtime Database > Create Database > Start in TEST MODE
-// 3. Copy the database URL shown (looks like https://your-project-default-rtdb.firebaseio.com)
 const FIREBASE_DB_URL = "https://pmcc-kuwait-default-rtdb.firebaseio.com";
-// =============================================
 
-let members = [];        // { id, name, kawan, code }
-let attendance = [];      // { id, memberId, memberName, kawan, serviceName, serviceDate, timeIn }
-let activeService = null; // { serviceName, serviceDate } or null
-let serviceNames = [];    // ["Sunday Service", "Youth Service", ...]
+let members = [];        
+let attendance = [];      
+let activeService = null; 
+let serviceNames = [];    
 
 const statusLine = document.getElementById('statusLine');
 
@@ -322,7 +331,7 @@ async function fbPutObj(path, obj) {
 
 async function loadAll() {
   if (configMissing()) {
-    statusLine.textContent = 'Not configured — add your Firebase Database URL at the top of the script.';
+    statusLine.textContent = 'Not configured — add your Firebase Database URL.';
     renderCheckin(); renderMembers(); renderKawanDatalist(); renderReportOptions(); renderServiceNameOptions();
     return;
   }
@@ -332,35 +341,34 @@ async function loadAll() {
     attendance = await fbGetArr('attendance');
     activeService = await fbGetObj('activeService');
     serviceNames = await fbGetArr('serviceNames');
-    statusLine.textContent = 'Synced — data stored on Firebase.';
+    statusLine.textContent = 'Synced';
   } catch (e) {
-    statusLine.textContent = 'Could not load data. Check your Database URL and connection.';
+    statusLine.textContent = 'Connection error.';
   }
   renderCheckin(); renderMembers(); renderKawanDatalist(); renderReportOptions(); renderActiveServiceStatus(); renderServiceNameOptions();
 }
 
 async function saveMembers() {
   if (configMissing()) return;
-  try { await fbPutArr('members', members); statusLine.textContent = 'Synced — data stored on Firebase.'; }
-  catch (e) { statusLine.textContent = 'Could not save members.'; }
+  try { await fbPutArr('members', members); statusLine.textContent = 'Synced'; }
+  catch (e) { statusLine.textContent = 'Save error.'; }
 }
 async function saveAttendanceData() {
   if (configMissing()) return;
-  try { await fbPutArr('attendance', attendance); statusLine.textContent = 'Synced — data stored on Firebase.'; }
-  catch (e) { statusLine.textContent = 'Could not save attendance.'; }
+  try { await fbPutArr('attendance', attendance); statusLine.textContent = 'Synced'; }
+  catch (e) { statusLine.textContent = 'Save error.'; }
 }
 async function saveActiveService() {
   if (configMissing()) return;
-  try { await fbPutObj('activeService', activeService); statusLine.textContent = 'Synced — data stored on Firebase.'; }
-  catch (e) { statusLine.textContent = 'Could not save active service.'; }
+  try { await fbPutObj('activeService', activeService); statusLine.textContent = 'Synced'; }
+  catch (e) { statusLine.textContent = 'Save error.'; }
 }
 async function saveServiceNames() {
   if (configMissing()) return;
-  try { await fbPutArr('serviceNames', serviceNames); statusLine.textContent = 'Synced — data stored on Firebase.'; }
-  catch (e) { statusLine.textContent = 'Could not save service names.'; }
+  try { await fbPutArr('serviceNames', serviceNames); statusLine.textContent = 'Synced'; }
+  catch (e) { statusLine.textContent = 'Save error.'; }
 }
 
-// ---------- Tabs ----------
 document.querySelectorAll('.tab-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -372,7 +380,6 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
   });
 });
 
-// ---------- Check-In (attendee-facing) ----------
 function renderCheckin() {
   const noActive = document.getElementById('noActiveMsg');
   const area = document.getElementById('checkinArea');
@@ -426,7 +433,7 @@ function renderCheckinResults() {
   const resultsEl = document.getElementById('ciResults');
   if (!query.trim()) { resultsEl.innerHTML = ''; return; }
   if (results.length === 0) {
-    resultsEl.innerHTML = '<div class="empty" style="text-align:center;">No matching member found. Check your ID or spelling.</div>';
+    resultsEl.innerHTML = '<div class="empty" style="text-align:center;">No matching member found.</div>';
     return;
   }
   resultsEl.innerHTML = results.map(m => {
@@ -438,7 +445,7 @@ function renderCheckinResults() {
         <div class="kawan">${escapeHtml(m.kawan || 'Unassigned')} · ID ${escapeHtml(m.code)}</div>
       </div>
       <button class="btn-present" data-member="${m.id}" ${existing ? 'disabled' : ''}>
-        ${existing ? '✓ Already In (' + escapeHtml(existing.timeIn) + ')' : "✅ I'm Present"}
+        ${existing ? '✓ In' : "✅ Present"}
       </button>
     </div>`;
   }).join('');
@@ -454,34 +461,33 @@ function renderCheckinResults() {
         id: uid('a'), memberId, memberName: member.name, kawan: member.kawan || 'Unassigned',
         serviceName: activeService.serviceName, serviceDate: activeService.serviceDate, timeIn
       });
-      document.getElementById('ciConfirm').innerHTML = `<div class="confirm-banner">✅ ${escapeHtml(member.name)}, you're marked present at ${timeIn}!</div>`;
+      document.getElementById('ciConfirm').innerHTML = `<div class="confirm-banner">✅ ${escapeHtml(member.name)} marked present at ${timeIn}!</div>`;
       document.getElementById('ciSearch').value = '';
       document.getElementById('ciResults').innerHTML = '';
       statusLine.textContent = 'Saving...';
       await saveAttendanceData();
       renderLiveRoster();
-      setTimeout(() => { document.getElementById('ciConfirm').innerHTML = ''; }, 4000);
+      setTimeout(() => { document.getElementById('ciConfirm').innerHTML = ''; }, 3000);
     });
   });
 }
 document.getElementById('ciSearch').addEventListener('input', renderCheckinResults);
 
-// ---------- Admin: Active Service ----------
 function renderServiceNameOptions() {
   const sel = document.getElementById('sName');
   const current = sel.value;
   if (serviceNames.length === 0) {
-    sel.innerHTML = '<option value="">— No service names yet, click + New Name —</option>';
+    sel.innerHTML = '<option value="">— No names, click + New —</option>';
     return;
   }
   sel.innerHTML = [...serviceNames].sort().map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
   if (current && serviceNames.includes(current)) sel.value = current;
 }
 document.getElementById('addServiceNameBtn').addEventListener('click', async () => {
-  const name = (prompt('New service name (e.g. Sunday Service, Youth Service):') || '').trim();
+  const name = (prompt('New service name:') || '').trim();
   if (!name) return;
   if (serviceNames.some(n => n.toLowerCase() === name.toLowerCase())) {
-    alert('That service name already exists.');
+    alert('Already exists.');
     document.getElementById('sName').value = name;
     return;
   }
@@ -494,15 +500,15 @@ document.getElementById('addServiceNameBtn').addEventListener('click', async () 
 function renderActiveServiceStatus() {
   const el = document.getElementById('activeServiceStatus');
   if (activeService && activeService.serviceName) {
-    el.textContent = `Currently active: ${activeService.serviceName} — ${activeService.serviceDate}`;
+    el.textContent = `Active: ${activeService.serviceName} (${activeService.serviceDate})`;
   } else {
-    el.textContent = 'No active session right now.';
+    el.textContent = 'No active session.';
   }
 }
 document.getElementById('startSessionBtn').addEventListener('click', async () => {
   const serviceName = document.getElementById('sName').value.trim();
   const serviceDate = document.getElementById('sDate').value;
-  if (!serviceName || !serviceDate) { alert('Choose a service name (or add one) and pick a date.'); return; }
+  if (!serviceName || !serviceDate) { alert('Choose service name and date.'); return; }
   activeService = { serviceName, serviceDate };
   renderActiveServiceStatus();
   renderCheckin();
@@ -517,7 +523,6 @@ document.getElementById('endSessionBtn').addEventListener('click', async () => {
   await saveActiveService();
 });
 
-// ---------- Admin: Members ----------
 function kawanGroups() {
   const groups = {};
   members.forEach(m => { const k = m.kawan || 'Unassigned'; (groups[k] = groups[k] || []).push(m); });
@@ -527,7 +532,7 @@ function renderMembers() {
   const groups = kawanGroups();
   const container = document.getElementById('membersList');
   const kawanNames = Object.keys(groups).sort();
-  if (kawanNames.length === 0) { container.innerHTML = '<div class="empty">No members yet. Add your first one above.</div>'; return; }
+  if (kawanNames.length === 0) { container.innerHTML = '<div class="empty">No members yet.</div>'; return; }
   container.innerHTML = kawanNames.map(k => `
     <div class="card kawan-group">
       <h3>${escapeHtml(k)} <span class="count-pill">${groups[k].length}</span></h3>
@@ -535,8 +540,8 @@ function renderMembers() {
         ${groups[k].map(m => `
           <tr>
             <td>${escapeHtml(m.name)}</td>
-            <td style="color:var(--muted); font-size:12.5px;">ID ${escapeHtml(m.code)}</td>
-            <td style="text-align:right;"><button class="btn-danger" data-id="${m.id}">Remove</button></td>
+            <td style="color:var(--muted); font-size:11px;">ID ${escapeHtml(m.code)}</td>
+            <td style="text-align:right;"><button class="btn-danger" data-id="${m.id}">Del</button></td>
           </tr>
         `).join('')}
       </tbody></table>
@@ -544,7 +549,7 @@ function renderMembers() {
   `).join('');
   container.querySelectorAll('.btn-danger').forEach(b => {
     b.addEventListener('click', async () => {
-      if (!confirm('Remove this member?')) return;
+      if (!confirm('Remove member?')) return;
       members = members.filter(m => m.id !== b.dataset.id);
       renderMembers(); renderKawanDatalist(); renderLiveRoster();
       statusLine.textContent = 'Saving...';
@@ -570,7 +575,6 @@ document.getElementById('addMemberBtn').addEventListener('click', async () => {
   await saveMembers();
 });
 
-// ---------- Reports ----------
 function allSessions() {
   const sessions = {};
   attendance.forEach(a => {
@@ -584,7 +588,7 @@ function allSessions() {
 function renderServiceHistory() {
   const sessions = allSessions();
   const container = document.getElementById('serviceHistoryList');
-  if (sessions.length === 0) { container.innerHTML = '<div class="empty">No services recorded yet. Attendance will appear here once a session has check-ins.</div>'; return; }
+  if (sessions.length === 0) { container.innerHTML = '<div class="empty">No past services.</div>'; return; }
   container.innerHTML = sessions.map(s => {
     const totalMembers = members.length;
     const presentCount = s.presentIds.size;
@@ -596,8 +600,8 @@ function renderServiceHistory() {
         <div class="hr-date">${s.serviceDate}</div>
       </div>
       <div class="hr-counts">
-        <span class="badge present">${presentCount} present</span>
-        <span class="badge absent">${absentCount} absent</span>
+        <span class="badge present">${presentCount}</span>
+        <span class="badge absent">${absentCount}</span>
       </div>
     </div>`;
   }).join('');
@@ -617,7 +621,7 @@ function renderServiceHistory() {
 function renderReportOptions() {
   const sessions = allSessions();
   const sel = document.getElementById('rService');
-  sel.innerHTML = sessions.map(s => `<option value="${escapeHtml(s.serviceName)}||${s.serviceDate}">${escapeHtml(s.serviceName)} — ${s.serviceDate}</option>`).join('');
+  sel.innerHTML = sessions.map(s => `<option value="${escapeHtml(s.serviceName)}||${s.serviceDate}">${escapeHtml(s.serviceName)} (${s.serviceDate})</option>`).join('');
   const kawanNames = [...new Set(members.map(m => m.kawan || 'Unassigned'))].sort();
   document.getElementById('rKawan').innerHTML = '<option value="">All Kawans</option>' + kawanNames.map(k => `<option value="${escapeHtml(k)}">${escapeHtml(k)}</option>`).join('');
   renderServiceHistory();
