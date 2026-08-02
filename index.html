@@ -173,6 +173,51 @@
   .history-row .hr-info .hr-name { font-weight: 700; font-size: 13px; }
   .history-row .hr-info .hr-date { font-size: 11px; color: var(--muted); }
   .history-row .hr-counts { display: flex; gap: 6px; flex-shrink: 0; }
+
+  /* Birthday celebrants */
+  .bday-wrap { max-width: 100%; margin: 14px 0 18px; }
+  .bday-title {
+    text-align: center; font-size: 13px; font-weight: 800; letter-spacing: 0.6px;
+    text-transform: uppercase; color: var(--danger); margin: 0 0 10px;
+  }
+  .bday-today {
+    background: var(--warn-soft); color: var(--warn); border-radius: 10px;
+    padding: 12px 14px; font-weight: 700; font-size: 14px; text-align: center; margin-bottom: 10px;
+  }
+  .bday-cols { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+  @media (max-width: 700px) { .bday-cols { grid-template-columns: 1fr; } }
+  .bday-col { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+  .bday-col h4 { margin: 0 0 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--muted); }
+  .bday-col .bday-item { font-size: 13px; padding: 4px 0; border-bottom: 1px solid var(--line); }
+  .bday-col .bday-item:last-child { border-bottom: none; }
+  .bday-col .bday-item .bd-date { color: var(--muted); font-size: 11px; }
+  .bday-col .bday-item.is-today { color: var(--accent); font-weight: 700; }
+
+  /* Admin login gate */
+  .login-gate { max-width: 360px; margin: 40px auto; text-align: center; }
+  .login-gate h3 { margin-bottom: 14px; }
+  .login-gate .field { text-align: left; margin-bottom: 10px; }
+  .login-gate .err { color: var(--danger); font-size: 12px; margin-top: 8px; min-height: 16px; }
+
+  /* Kawan sub-groups inside present/absent roster */
+  .roster-kawan { margin-bottom: 10px; }
+  .roster-kawan h4 {
+    font-size: 11px; margin: 0 0 4px; padding: 3px 8px;
+    background: var(--accent-soft); border-radius: 6px; display: inline-block; color: var(--accent);
+  }
+
+  /* Member edit form + kawan mgmt */
+  .member-row-actions { display: flex; gap: 4px; justify-content: flex-end; }
+  .btn-edit { background: transparent; color: var(--accent); border: 1px solid var(--line); padding: 4px 8px; font-size: 12px; }
+  .btn-edit:hover { background: var(--accent-soft); }
+  .kawan-mgmt-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .kawan-mgmt-row:last-child { border-bottom: none; }
+  .kawan-mgmt-row .kmr-name { flex: 1; font-weight: 700; font-size: 13px; }
+
+  /* Sync status */
+  .sync-status { font-size: 12px; color: var(--muted); margin-top: 8px; }
+  .sync-status.ok { color: var(--accent); }
+  .sync-status.bad { color: var(--danger); }
 </style>
 </head>
 <body>
@@ -191,9 +236,9 @@
   <!-- CHECK-IN (attendee-facing) -->
   <div class="panel active" id="panel-checkin">
     <div id="noActiveMsg" class="no-active" style="display:none;">
-      No active service right now. Please check with the admin.
+      No active service right now. You can still search below to view member information.
     </div>
-    <div id="checkinArea" style="display:none;">
+    <div id="checkinArea">
       <div class="checkin-hero">
         <p class="service-name" id="ciServiceName"></p>
         <p class="service-date" id="ciServiceDate"></p>
@@ -203,18 +248,17 @@
       </div>
       <div id="ciConfirm"></div>
       <div class="match-list" id="ciResults"></div>
+      <div class="bday-wrap" id="bdayWrap"></div>
     </div>
     <div class="summary-cols" id="liveRosterArea" style="margin-top:20px; display:none;">
       <div class="card">
         <h3 style="margin-top:0;">Present <span class="count-pill" id="livePresentCount"></span></h3>
-        <table><thead><tr><th>Name</th><th>Kawan</th><th>Time</th></tr></thead>
-        <tbody id="livePresentBody"></tbody></table>
+        <div id="livePresentGroups"></div>
         <div class="empty" id="livePresentEmpty" style="display:none;">No one checked in yet.</div>
       </div>
       <div class="card">
         <h3 style="margin-top:0;">Absent <span class="count-pill" id="liveAbsentCount"></span></h3>
-        <table><thead><tr><th>Name</th><th>Kawan</th></tr></thead>
-        <tbody id="liveAbsentBody"></tbody></table>
+        <div id="liveAbsentGroups"></div>
         <div class="empty" id="liveAbsentEmpty" style="display:none;">Everyone checked in.</div>
       </div>
     </div>
@@ -222,40 +266,240 @@
 
   <!-- ADMIN -->
   <div class="panel" id="panel-admin">
-    <div class="card">
-      <h3 style="margin-top:0;">Active Service</h3>
-      <div class="row">
-        <div class="field">
-          <label for="sName">Service Name</label>
-          <select id="sName"></select>
-        </div>
-        <button class="btn-ghost" id="addServiceNameBtn" type="button">+ New</button>
-        <div class="field">
-          <label for="sDate">Service Date</label>
-          <input type="date" id="sDate">
-        </div>
-        <button class="btn-primary" id="startSessionBtn" style="width:100%;">Set Active</button>
-        <button class="btn-ghost" id="endSessionBtn" style="width:100%;">End Session</button>
+    <!-- LOGIN GATE -->
+    <div class="card login-gate" id="adminLoginGate">
+      <h3>Admin Login</h3>
+      <div class="field">
+        <label for="adminUsernameInput">Username</label>
+        <input type="text" id="adminUsernameInput" placeholder="Username" autocomplete="off">
       </div>
-      <p class="status" id="activeServiceStatus" style="margin-top:8px;"></p>
+      <div class="field">
+        <label for="adminPasswordInput">Password</label>
+        <input type="text" id="adminPasswordInput" placeholder="Enter admin password" autocomplete="off">
+      </div>
+      <button class="btn-primary" id="adminLoginBtn" style="width:100%;">Log In</button>
+      <div class="err" id="adminLoginErr"></div>
     </div>
 
-    <div class="card">
-      <h3 style="margin-top:0;">Add Member</h3>
-      <div class="row">
-        <div class="field">
-          <label for="mName">Name</label>
-          <input type="text" id="mName" placeholder="Full name">
+    <!-- ADMIN CONTENT (hidden until logged in) -->
+    <div id="adminContent" style="display:none;">
+      <div class="card" style="text-align:right;">
+        <span class="status" id="adminWhoAmI" style="float:left; margin-top:8px;"></span>
+        <button class="btn-ghost" id="adminLogoutBtn">Log Out</button>
+        <button class="btn-ghost" id="changeAdminPasswordBtn">Change Password</button>
+      </div>
+
+      <div class="card" id="adminAccountsCard" style="display:none;">
+        <h3 style="margin-top:0;">Admin Accounts <span class="status">(Master Admin only)</span></h3>
+        <div id="adminAccountsList"></div>
+        <div class="row" style="margin-top:8px;">
+          <div class="field">
+            <label for="newAdminUsername">New Username</label>
+            <input type="text" id="newAdminUsername" placeholder="e.g. sister_grace" autocomplete="off">
+          </div>
+          <div class="field">
+            <label for="newAdminPassword">Password</label>
+            <input type="text" id="newAdminPassword" placeholder="Set a password" autocomplete="off">
+          </div>
+          <button class="btn-primary" id="addAdminAccountBtn" style="width:100%;">+ Create Admin Account</button>
         </div>
-        <div class="field">
-          <label for="mKawan">Kawan Name</label>
-          <input type="text" id="mKawan" list="kawanList" placeholder="e.g. Kawan A">
-          <datalist id="kawanList"></datalist>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top:0;">Active Service</h3>
+        <div class="row">
+          <div class="field">
+            <label for="sName">Service Name</label>
+            <select id="sName"></select>
+          </div>
+          <button class="btn-ghost" id="addServiceNameBtn" type="button">+ New</button>
+          <div class="field">
+            <label for="sDate">Service Date</label>
+            <input type="date" id="sDate">
+          </div>
+          <button class="btn-primary" id="startSessionBtn" style="width:100%;">Set Active</button>
+          <button class="btn-ghost" id="endSessionBtn" style="width:100%;">End Session</button>
         </div>
-        <button class="btn-primary" id="addMemberBtn" style="width:100%;">+ Add Member</button>
+        <p class="status" id="activeServiceStatus" style="margin-top:8px;"></p>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top:0;" id="memberFormTitle">Add Member</h3>
+        <div class="row">
+          <div class="field">
+            <label for="mName">Name</label>
+            <input type="text" id="mName" placeholder="Full name">
+          </div>
+          <div class="field">
+            <label for="mKawan">Kawan Name</label>
+            <input type="text" id="mKawan" list="kawanList" placeholder="e.g. Kawan A">
+            <datalist id="kawanList"></datalist>
+          </div>
+        </div>
+        <div class="row" style="margin-top:8px;">
+          <div class="field">
+            <label for="mContact">Mobile / Contact Number</label>
+            <input type="text" id="mContact" placeholder="e.g. +965 5xxx xxxx">
+          </div>
+          <div class="field">
+            <label for="mDob">Date of Birth</label>
+            <input type="date" id="mDob">
+          </div>
+        </div>
+        <div class="row" style="margin-top:8px;">
+          <div class="field">
+            <label for="mOccupation">Occupation</label>
+            <input type="text" id="mOccupation" placeholder="e.g. Nurse">
+          </div>
+          <div class="field">
+            <label for="mCompany">Company</label>
+            <input type="text" id="mCompany" placeholder="e.g. NBK">
+          </div>
+        </div>
+        <div class="row" style="margin-top:8px;">
+          <div class="field">
+            <label for="mAddress">Home Address (Kuwait)</label>
+            <input type="text" id="mAddress" placeholder="e.g. Farwaniya, Block 3">
+          </div>
+        </div>
+
+        <button class="btn-ghost" id="toggleMoreFieldsBtn" type="button" style="margin-top:10px;">+ More Fields</button>
+        <div id="moreMemberFields" style="display:none; margin-top:8px;">
+          <div class="row">
+            <div class="field">
+              <label for="mNickname">Nickname</label>
+              <input type="text" id="mNickname" placeholder="e.g. Ed">
+            </div>
+            <div class="field">
+              <label for="mMiddleName">Middle Name</label>
+              <input type="text" id="mMiddleName" placeholder="Middle name">
+            </div>
+          </div>
+          <div class="row" style="margin-top:8px;">
+            <div class="field">
+              <label for="mArea">Area</label>
+              <input type="text" id="mArea" placeholder="e.g. Jerusalem">
+            </div>
+            <div class="field">
+              <label for="mMobile2">Mobile Number 2</label>
+              <input type="text" id="mMobile2" placeholder="Alternate number">
+            </div>
+          </div>
+          <div class="row" style="margin-top:8px;">
+            <div class="field">
+              <label for="mEmail">Email</label>
+              <input type="text" id="mEmail" placeholder="name@example.com">
+            </div>
+            <div class="field">
+              <label for="mFacebook">Facebook</label>
+              <input type="text" id="mFacebook" placeholder="Facebook name / link">
+            </div>
+          </div>
+          <div class="row" style="margin-top:8px;">
+            <div class="field">
+              <label for="mAddressPH">Home Address (Philippines)</label>
+              <input type="text" id="mAddressPH" placeholder="e.g. Marikina">
+            </div>
+            <div class="field">
+              <label for="mDateBaptised">Date Baptised</label>
+              <input type="text" id="mDateBaptised" placeholder="e.g. Sept 1995">
+            </div>
+          </div>
+          <div class="row" style="margin-top:8px;">
+            <div class="field">
+              <label for="mConvertedBy">Converted By</label>
+              <input type="text" id="mConvertedBy" placeholder="Name">
+            </div>
+            <div class="field">
+              <label for="mGender">Gender</label>
+              <select id="mGender">
+                <option value="">—</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+              </select>
+            </div>
+          </div>
+          <div class="row" style="margin-top:8px;">
+            <div class="field">
+              <label for="mDesignation">Designation</label>
+              <input type="text" id="mDesignation" placeholder="e.g. Kawan Leader">
+            </div>
+            <div class="field">
+              <label for="mStatus">Status</label>
+              <select id="mStatus">
+                <option value="">—</option>
+                <option value="Active">Active</option>
+                <option value="InActive">InActive</option>
+              </select>
+            </div>
+          </div>
+          <div class="row" style="margin-top:8px;">
+            <div class="field">
+              <label for="mRemarks">Remarks</label>
+              <input type="text" id="mRemarks" placeholder="Notes">
+            </div>
+            <div class="field">
+              <label for="mCode">Member Code / ID</label>
+              <input type="text" id="mCode" placeholder="Auto-generated if left blank">
+            </div>
+          </div>
+        </div>
+
+        <div class="row" style="margin-top:10px;">
+          <button class="btn-primary" id="addMemberBtn" style="width:100%;">+ Add Member</button>
+          <button class="btn-ghost" id="cancelEditMemberBtn" style="width:100%; display:none;">Cancel Edit</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top:0;">Import / Export Members</h3>
+        <p class="status" style="margin-top:0;">Export your full member list to back it up or edit in Excel, or import members from a CSV/JSON file (password-protected).</p>
+        <div class="row">
+          <button class="btn-ghost" id="exportMembersCsvBtn" style="width:100%;">Export Members (CSV / Excel)</button>
+          <button class="btn-ghost" id="exportMembersJsonBtn" style="width:100%;">Export Members (JSON)</button>
+        </div>
+        <div class="row" style="margin-top:8px;">
+          <label class="btn-primary" for="importMembersFileInput" style="width:100%; text-align:center; cursor:pointer; display:inline-block;">Import Members from File (CSV/JSON)</label>
+          <input type="file" id="importMembersFileInput" accept=".csv,.json" style="display:none;">
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top:0;">Import Members</h3>
+        <p class="status" style="margin-top:0;">Import the provided member list (232 members, with all available field information — Kawan, mobile numbers, birthday, address, status, and more). Members already present (matched by Member Code) are skipped.</p>
+        <button class="btn-primary" id="importProvidedMembersBtn" style="width:100%;">Import Provided Member List</button>
+        <p class="status" id="importStatusLine" style="margin-top:8px;"></p>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top:0;">Kawan Groups</h3>
+        <div id="kawanMgmtList"></div>
+        <div class="row" style="margin-top:8px;">
+          <div class="field">
+            <label for="newKawanName">New Kawan Name</label>
+            <input type="text" id="newKawanName" placeholder="e.g. Kawan D">
+          </div>
+          <button class="btn-primary" id="addKawanBtn" style="width:100%;">+ Add Kawan</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top:0;">Search Members</h3>
+        <input type="text" id="memberSearchInput" placeholder="Search by name, kawan, mobile, or code...">
+      </div>
+
+      <div id="membersList"></div>
+
+      <div class="card">
+        <h3 style="margin-top:0;">Local Computer Sync</h3>
+        <p class="status" style="margin-top:0;">Automatically saves today's services and attendance to a folder on this computer (Chrome/Edge only).</p>
+        <div class="row">
+          <button class="btn-primary" id="chooseSyncFolderBtn" style="width:100%;">Choose Sync Folder</button>
+          <button class="btn-ghost" id="forgetSyncFolderBtn" style="width:100%;">Disconnect Folder</button>
+        </div>
+        <p class="sync-status" id="syncStatusLine">No sync folder set.</p>
       </div>
     </div>
-    <div id="membersList"></div>
   </div>
 
   <!-- REPORTS -->
@@ -267,6 +511,10 @@
     <div class="card">
       <div class="row">
         <div class="field">
+          <label for="rYear">Year</label>
+          <select id="rYear"></select>
+        </div>
+        <div class="field">
           <label for="rService">Service / Date</label>
           <select id="rService"></select>
         </div>
@@ -276,18 +524,22 @@
         </div>
         <button class="btn-ghost" id="runReportBtn" style="width:100%;">Refresh</button>
       </div>
+      <p class="sync-status" id="reportYearStatus" style="margin-top:8px;"></p>
+      <div class="row" style="margin-top:8px;">
+        <button class="btn-ghost" id="exportReportCsvBtn" style="width:100%;">Export This Report (Excel/CSV)</button>
+        <button class="btn-ghost" id="exportReportTxtBtn" style="width:100%;">Export This Report (Text)</button>
+        <button class="btn-ghost" id="exportYearAttendanceBtn" style="width:100%;">Export Full Year (CSV)</button>
+      </div>
     </div>
     <div class="summary-cols">
       <div class="card">
         <h3 style="margin-top:0;">Present <span class="count-pill" id="presentCount"></span></h3>
-        <table><thead><tr><th>Name</th><th>Kawan</th><th>Time</th></tr></thead>
-        <tbody id="presentBody"></tbody></table>
+        <div id="presentGroups"></div>
         <div class="empty" id="presentEmpty" style="display:none;">No one recorded present.</div>
       </div>
       <div class="card">
         <h3 style="margin-top:0;">Absent <span class="count-pill" id="absentCount"></span></h3>
-        <table><thead><tr><th>Name</th><th>Kawan</th></tr></thead>
-        <tbody id="absentBody"></tbody></table>
+        <div id="absentGroups"></div>
         <div class="empty" id="absentEmpty" style="display:none;">Everyone accounted for.</div>
       </div>
     </div>
@@ -297,10 +549,103 @@
 <script>
 const FIREBASE_DB_URL = "https://pmcc-kuwait-default-rtdb.firebaseio.com";
 
+const IMPORTED_MEMBERS = [{"code": "KW-00001", "name": "Edgar Del Rosario", "firstName": "Edgar", "lastName": "Del Rosario", "middleName": "Aguilar", "nickname": "Ed", "kawan": "Jerusalem", "area": "Jerusalem", "contact": "97273625", "mobile2": "243-72-444", "email": "Edgar.delrosario@johnmenzies.aero", "facebook": "Holyed@yahoo.com", "dob": "1979-05-22", "address": "Farwaniya, Block 1", "addressPhilippines": "Marikina", "dateBaptised": "Sept 1995", "convertedBy": "Rhey Del Rosario", "status": "Active", "designation": "Kawan Leader", "gender": "Male", "remarks": "April 26 to May 5 Vacation", "occupation": "", "company": ""}, {"code": "KW-00002", "name": "Catherine Del Rosario", "firstName": "Catherine", "lastName": "Del Rosario", "middleName": "Aquino", "nickname": "Khate", "kawan": "Jerusalem", "area": "Jerusalem", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1983-09-25", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "Active", "designation": "Kawan Leader", "gender": "Male", "remarks": "April 20 to May 5 vacation", "occupation": "", "company": ""}, {"code": "KW-00003", "name": "Judyline Panaun", "firstName": "Judyline", "lastName": "Panaun", "middleName": "Lumbang", "nickname": "Lai", "kawan": "Mangaf", "area": "Mangaf", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1983-10-23", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "Active", "designation": "", "gender": "Female", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00004", "name": "Alfraye Clavano", "firstName": "Alfraye", "lastName": "Clavano", "middleName": "Jul", "nickname": "Alfraye", "kawan": "Macedonia", "area": "Macedonia", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1986-07-06", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00005", "name": "Filipina Rapisora", "firstName": "Filipina", "lastName": "Rapisora", "middleName": "Ragsac", "nickname": "Baby", "kawan": "Macedonia", "area": "Macedonia", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "2061-11-23", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "Female", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00006", "name": "Rubirosa Macapagal", "firstName": "Rubirosa", "lastName": "Macapagal", "middleName": "Agus", "nickname": "Rubirosa", "kawan": "Macedonia", "area": "Macedonia", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1970-10-19", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00007", "name": "Estelita De Leon", "firstName": "Estelita", "lastName": "De Leon", "middleName": "Dizon", "nickname": "Estelita", "kawan": "Macedonia", "area": "Macedonia", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1978-11-08", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "Active", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00008", "name": "Marissa Gammad", "firstName": "Marissa", "lastName": "Gammad", "middleName": "G.", "nickname": "Jopay", "kawan": "Macedonia", "area": "Macedonia", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1969-03-06", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00009", "name": "Glenniss Tubigan", "firstName": "Glenniss", "lastName": "Tubigan", "middleName": "Fabay", "nickname": "Glen", "kawan": "Filipos", "area": "Filipos", "contact": "-51316441", "mobile2": "", "email": "", "facebook": "", "dob": "1989-01-14", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "Active", "designation": "", "gender": "Female", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00010", "name": "Mark Tubigan", "firstName": "Mark", "lastName": "Tubigan", "middleName": "", "nickname": "", "kawan": "Filipo", "area": "Filipos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1983-05-19", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "Member", "gender": "Male", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00011", "name": "Lovely Jheryl Flores", "firstName": "Lovely Jheryl", "lastName": "Flores", "middleName": "Masinas", "nickname": "Lovely Jheryl", "kawan": "Macedonia", "area": "Macedonia", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1991-07-13", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "Female", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00012", "name": "Andy Deomampo", "firstName": "Andy", "lastName": "Deomampo", "middleName": "Belarmino", "nickname": "", "kawan": "Filipos", "area": "Filipos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1985-12-06", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "Mark Jay Tuybigan", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00013", "name": "Guia Caberto", "firstName": "Guia", "lastName": "Caberto", "middleName": "Faderanga", "nickname": "Guia", "kawan": "Macedonia", "area": "Macedonia", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1982-01-22", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00014", "name": "Nenita Ramos", "firstName": "Nenita", "lastName": "Ramos", "middleName": "Cayanan", "nickname": "Nenita", "kawan": "Macedonia", "area": "Macedonia", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "2065-12-31", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00015", "name": "Rodeliza Pablo", "firstName": "Rodeliza", "lastName": "Pablo", "middleName": "Martinez", "nickname": "Rodeliza", "kawan": "Macedonia", "area": "Macedonia", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "2022-02-18", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00016", "name": "Mary Lou Bolanos", "firstName": "Mary Lou", "lastName": "Bolanos", "middleName": "Arsua", "nickname": "Lou", "kawan": "Macedonia", "area": "Macedonia", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1986-10-14", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00017", "name": "Mary Joy Gallenito", "firstName": "Mary Joy", "lastName": "Gallenito", "middleName": "Sy", "nickname": "Joy", "kawan": "Macedonia", "area": "Macedonia", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1993-05-01", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00018", "name": "Benjie Isip", "firstName": "Benjie", "lastName": "Isip", "middleName": "Lositano", "nickname": "", "kawan": "Macedonia", "area": "Macedonia", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1993-06-10", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00019", "name": "Elmer Geneston", "firstName": "Elmer", "lastName": "Geneston", "middleName": "M.", "nickname": "", "kawan": "Patmos", "area": "Berrea", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1984-09-01", "address": "", "addressPhilippines": "", "dateBaptised": "April 2012", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00020", "name": "Joane Lagunday", "firstName": "Joane", "lastName": "Lagunday", "middleName": "Lagunday", "nickname": "Joane", "kawan": "Jerusalem", "area": "Jerusalem", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1987-06-21", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00021", "name": "Elsie Gasmin", "firstName": "Elsie", "lastName": "Gasmin", "middleName": "", "nickname": "", "kawan": "Patmos", "area": "Patmos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1984-11-19", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00022", "name": "Catherine Tagoon", "firstName": "Catherine", "lastName": "Tagoon", "middleName": "U.", "nickname": "", "kawan": "Berrea", "area": "Berrea", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1980-01-22", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "Elmer Geneston", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00023", "name": "Cathetine Gaspi", "firstName": "Cathetine", "lastName": "Gaspi", "middleName": "A.", "nickname": "", "kawan": "Other", "area": "Other", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1982-01-27", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "Female", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00024", "name": "Michelle Rin", "firstName": "Michelle", "lastName": "Rin", "middleName": "R.", "nickname": "", "kawan": "Jerusalem", "area": "Jerusalem", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1995-03-28", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00025", "name": "Emily Teves", "firstName": "Emily", "lastName": "Teves", "middleName": "J.", "nickname": "", "kawan": "Jerusalem", "area": "Jerusalem", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1976-06-16", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00026", "name": "Gloria Solis", "firstName": "Gloria", "lastName": "Solis", "middleName": "G.", "nickname": "", "kawan": "Patmos", "area": "Patmos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "2065-03-12", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00027", "name": "Arlene Catangcatang", "firstName": "Arlene", "lastName": "Catangcatang", "middleName": "G.", "nickname": "Arlene", "kawan": "Macedonia", "area": "Macedonia", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1979-05-18", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00028", "name": "Angelyn Duplicate Name Gepte", "firstName": "Angelyn Duplicate Name", "lastName": "Gepte", "middleName": "T.", "nickname": "", "kawan": "Other", "area": "Other", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1983-10-24", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00029", "name": "Evelyn Imperial", "firstName": "Evelyn", "lastName": "Imperial", "middleName": "M.", "nickname": "", "kawan": "Patmos", "area": "Patmos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1985-11-25", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "Elmer Geneston", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00030", "name": "Lorena Dumayog", "firstName": "Lorena", "lastName": "Dumayog", "middleName": "S.", "nickname": "", "kawan": "Jerusalem", "area": "Jerusalem", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1979-11-26", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "Elmer Geneston", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00031", "name": "Marcializa Samson", "firstName": "Marcializa", "lastName": "Samson", "middleName": "S.", "nickname": "", "kawan": "Jerusalem", "area": "Jerusalem", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1981-06-27", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "Elmer Geneston", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00032", "name": "Naicy Rose Briones", "firstName": "Naicy Rose", "lastName": "Briones", "middleName": "", "nickname": "", "kawan": "Jerusalem", "area": "Jerusalem", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1986-01-10", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00033", "name": "Evelyn Labitag", "firstName": "Evelyn", "lastName": "Labitag", "middleName": "Labitag", "nickname": "Evelyn", "kawan": "Jerusalem", "area": "Jerusalem", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1976-07-06", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00034", "name": "Mary-an Hernandez", "firstName": "Mary-an", "lastName": "Hernandez", "middleName": "Vicente", "nickname": "Mary-an", "kawan": "Jerusalem", "area": "Jerusalem", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1987-09-02", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "Female", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00035", "name": "Jess Paman", "firstName": "Jess", "lastName": "Paman", "middleName": "L.", "nickname": "", "kawan": "Jerusalem", "area": "Jerusalem", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "2068-02-26", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "Elmer Geneston", "status": "InActive", "designation": "", "gender": "Male", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00036", "name": "Nilda Gata", "firstName": "Nilda", "lastName": "Gata", "middleName": "F.", "nickname": "Nilda", "kawan": "Jerusalem", "area": "Jerusalem", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "2066-11-28", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00037", "name": "Judy Zamora", "firstName": "Judy", "lastName": "Zamora", "middleName": "A.", "nickname": "", "kawan": "Jerusalem", "area": "Jerusalem", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1983-10-04", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "Elmer Geneston", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00038", "name": "Marith Masinas", "firstName": "Marith", "lastName": "Masinas", "middleName": "C", "nickname": "", "kawan": "Patmos", "area": "Patmos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "2065-03-24", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00039", "name": "Maritess Tamboong", "firstName": "Maritess", "lastName": "Tamboong", "middleName": "", "nickname": "Tess", "kawan": "Mangaf", "area": "Mangaf", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1988-07-13", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "Active", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00040", "name": "Joan Llena", "firstName": "Joan", "lastName": "Llena", "middleName": "Mendoza", "nickname": "Joan", "kawan": "Filipos", "area": "Filipos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1982-11-12", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00041", "name": "Sheena Petrache", "firstName": "Sheena", "lastName": "Petrache", "middleName": "Gayeta", "nickname": "Sheena", "kawan": "Filipos", "area": "Filipos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "2065-11-19", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00042", "name": "Joseph Manzon", "firstName": "Joseph", "lastName": "Manzon", "middleName": "G.", "nickname": "Joseph", "kawan": "Filipos", "area": "Filipos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1980-08-13", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00043", "name": "Joselito Sone", "firstName": "Joselito", "lastName": "Sone", "middleName": "Palomo", "nickname": "Lito", "kawan": "Filipos", "area": "Filipos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1974-10-11", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00044", "name": "Theresa Hernandez", "firstName": "Theresa", "lastName": "Hernandez", "middleName": "De Guzman", "nickname": "Theresa", "kawan": "Filipos", "area": "Filipos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1982-09-21", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00045", "name": "Melanie Villamin", "firstName": "Melanie", "lastName": "Villamin", "middleName": "T.", "nickname": "Melanie", "kawan": "Filipos", "area": "Filipos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1980-04-28", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00046", "name": "Lenie Siman", "firstName": "Lenie", "lastName": "Siman", "middleName": "Paderan", "nickname": "Lenie", "kawan": "Filipos", "area": "Filipos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1977-03-15", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00047", "name": "Emy Rodriguez", "firstName": "Emy", "lastName": "Rodriguez", "middleName": "T.", "nickname": "Ems", "kawan": "Filipos", "area": "Filipos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1979-10-02", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00048", "name": "Leony Agustin M.", "firstName": "Leony", "lastName": "Agustin M.", "middleName": "Agustin", "nickname": "", "kawan": "Patmos", "area": "Patmos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1970-04-24", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00049", "name": "Ezekiel Patricio", "firstName": "Ezekiel", "lastName": "Patricio", "middleName": "Jacinto", "nickname": "Khiel", "kawan": "Filipos", "area": "Filipos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1993-04-13", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00050", "name": "Jaypee Abarientos", "firstName": "Jaypee", "lastName": "Abarientos", "middleName": "Mampusti", "nickname": "Jp", "kawan": "Filipos", "area": "Filipos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1985-04-22", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00051", "name": "Magelyn Abarientos", "firstName": "Magelyn", "lastName": "Abarientos", "middleName": "Balili", "nickname": "Magelyn", "kawan": "Filipos", "area": "Filipos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1989-03-16", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00052", "name": "Romnick Ramos", "firstName": "Romnick", "lastName": "Ramos", "middleName": "Lopez", "nickname": "Nhick", "kawan": "Filipos", "area": "Filipos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1987-08-01", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00053", "name": "Miarose Patricio", "firstName": "Miarose", "lastName": "Patricio", "middleName": "Songsong", "nickname": "Miarose", "kawan": "Filipos", "area": "Filipos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1993-11-16", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00054", "name": "Rey Sente", "firstName": "Rey", "lastName": "Sente", "middleName": "", "nickname": "", "kawan": "Patmos", "area": "Patmos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1981-10-31", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00055", "name": "May Avenido", "firstName": "May", "lastName": "Avenido", "middleName": "", "nickname": "", "kawan": "Jerusalem", "area": "Jerusalem", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1977-11-27", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00056", "name": "Josua Lirag", "firstName": "Josua", "lastName": "Lirag", "middleName": "Malobo", "nickname": "Lucky", "kawan": "Filipos", "area": "Filipos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1997-04-30", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00057", "name": "Josephine Batisting", "firstName": "Josephine", "lastName": "Batisting", "middleName": "Capa", "nickname": "Josephine", "kawan": "Filipos", "area": "Filipos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1983-02-08", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00058", "name": "Niña Bonifacio", "firstName": "Niña", "lastName": "Bonifacio", "middleName": "Panganiban", "nickname": "Niña", "kawan": "Filipos", "area": "Filipos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1986-10-29", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00059", "name": "Olivia Ledesma", "firstName": "Olivia", "lastName": "Ledesma", "middleName": "V.", "nickname": "Olivia", "kawan": "Filipos", "area": "Filipos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1974-01-22", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00060", "name": "Ana Dolor", "firstName": "Ana", "lastName": "Dolor", "middleName": "", "nickname": "", "kawan": "Patmos", "area": "Patmos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1989-09-30", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00061", "name": "Monaliza Tandul", "firstName": "Monaliza", "lastName": "Tandul", "middleName": "", "nickname": "", "kawan": "Patmos", "area": "Patmos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1970-04-04", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00062", "name": "Angeline Gepte", "firstName": "Angeline", "lastName": "Gepte", "middleName": "A.", "nickname": "", "kawan": "Jerusalem", "area": "Jerusalem", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1983-10-24", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00063", "name": "Lucita Villano", "firstName": "Lucita", "lastName": "Villano", "middleName": "Sanchez", "nickname": "Lucita", "kawan": "Filipos", "area": "Filipos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "2067-03-02", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00064", "name": "Manilyn Villarta", "firstName": "Manilyn", "lastName": "Villarta", "middleName": "Alcantara", "nickname": "Manilyn", "kawan": "Filipos", "area": "Filipos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1993-11-13", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00065", "name": "Maretche Domo", "firstName": "Maretche", "lastName": "Domo", "middleName": "J.", "nickname": "Maretche", "kawan": "Filipos", "area": "Filipos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1979-09-08", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00066", "name": "Iris Jane Martinez", "firstName": "Iris Jane", "lastName": "Martinez", "middleName": "Rodolfo", "nickname": "Iris Jane", "kawan": "Philadelphia", "area": "Philadelphia", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1989-11-29", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "Female", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00067", "name": "Eliezer Martinez", "firstName": "Eliezer", "lastName": "Martinez", "middleName": "King", "nickname": "Ely", "kawan": "Philadelphia", "area": "Philadelphia", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1987-11-30", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "Male", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00068", "name": "Juan Paolo Samarista", "firstName": "Juan Paolo", "lastName": "Samarista", "middleName": "Dabatian", "nickname": "Pao", "kawan": "Philadelphia", "area": "Philadelphia", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1994-12-31", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00069", "name": "Nerissa Samarista", "firstName": "Nerissa", "lastName": "Samarista", "middleName": "Endegado", "nickname": "Nherie", "kawan": "Philadelphia", "area": "Philadelphia", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1991-06-12", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00070", "name": "Aaron James Pintor", "firstName": "Aaron James", "lastName": "Pintor", "middleName": "Presidente", "nickname": "Aaron James", "kawan": "Philadelphia", "area": "Philadelphia", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1987-05-08", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00071", "name": "Rowena Pintor", "firstName": "Rowena", "lastName": "Pintor", "middleName": "De Domingo", "nickname": "Wena", "kawan": "Philadelphia", "area": "Philadelphia", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1983-02-07", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00072", "name": "Elvira Millanes", "firstName": "Elvira", "lastName": "Millanes", "middleName": "Estillore", "nickname": "Elvira", "kawan": "Philadelphia", "area": "Philadelphia", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1981-04-13", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00073", "name": "Christian Hope Lao", "firstName": "Christian Hope", "lastName": "Lao", "middleName": "", "nickname": "", "kawan": "Philadelphia", "area": "Philadelphia", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1988-05-30", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00074", "name": "Dianna Mae Mahusay", "firstName": "Dianna Mae", "lastName": "Mahusay", "middleName": "Tilos", "nickname": "Dianna Mae", "kawan": "Philadelphia", "area": "Philadelphia", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1986-12-17", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00075", "name": "Apolinario Decano", "firstName": "Apolinario", "lastName": "Decano", "middleName": "Real", "nickname": "Paul", "kawan": "Philadelphia", "area": "Philadelphia", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1985-05-11", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00076", "name": "Mishell Decano", "firstName": "Mishell", "lastName": "Decano", "middleName": "Anoran", "nickname": "Mishell", "kawan": "Philadelphia", "area": "Philadelphia", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1985-08-21", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00077", "name": "Joshen Mahusay", "firstName": "Joshen", "lastName": "Mahusay", "middleName": "Tilos", "nickname": "Joshen", "kawan": "Philadelphia", "area": "Philadelphia", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1998-01-23", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00078", "name": "Edipolo Ruzgal Jr.", "firstName": "Edipolo", "lastName": "Ruzgal Jr.", "middleName": "Villanueva", "nickname": "Dick", "kawan": "Macedoni", "area": "Macedonia", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "2065-09-13", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "Elder", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00079", "name": "Alfredo Atun Jr.", "firstName": "Alfredo", "lastName": "Atun Jr.", "middleName": "Matias", "nickname": "Jun", "kawan": "Other", "area": "Other", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1976-04-01", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00080", "name": "Erwin Bolanos", "firstName": "Erwin", "lastName": "Bolanos", "middleName": "Makalintal", "nickname": "", "kawan": "Macedonia", "area": "Macedonia", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1984-05-15", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00081", "name": "Jerwin Reyes", "firstName": "Jerwin", "lastName": "Reyes", "middleName": "Platino", "nickname": "Jerwin", "kawan": "Mangaf", "area": "Mangaf", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1985-04-08", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "Active", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00082", "name": "Raymond Orain", "firstName": "Raymond", "lastName": "Orain", "middleName": "Baykin", "nickname": "Raymond", "kawan": "Mangaf", "area": "Mangaf", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1977-01-07", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "Active", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00083", "name": "Stain Paglinawan", "firstName": "Stain", "lastName": "Paglinawan", "middleName": "Ramos", "nickname": "Stain", "kawan": "Mangaf", "area": "Mangaf", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1993-08-28", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "Active", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00084", "name": "Judylyn Goc", "firstName": "Judylyn", "lastName": "Goc", "middleName": "Basiliyo", "nickname": "Judy", "kawan": "Mangaf", "area": "Mangaf", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1987-01-24", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "Active", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00085", "name": "Daisy Bagsic", "firstName": "Daisy", "lastName": "Bagsic", "middleName": "Tulagan", "nickname": "Daisy", "kawan": "Mangaf", "area": "Mangaf", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1983-08-06", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "Active", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00086", "name": "Glaiza Tano", "firstName": "Glaiza", "lastName": "Tano", "middleName": "Besmar", "nickname": "Glaiza", "kawan": "Mangaf", "area": "Mangaf", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1987-09-09", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "Active", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00087", "name": "Abigail Ruzgal", "firstName": "Abigail", "lastName": "Ruzgal", "middleName": "Gonzales", "nickname": "Abi", "kawan": "Macedonia", "area": "Macedonia", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1993-07-26", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00088", "name": "Ma Jennifer Ruzgal", "firstName": "Ma Jennifer", "lastName": "Ruzgal", "middleName": "Gonzales", "nickname": "Jen", "kawan": "Macedoni", "area": "Macedonia", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "2068-09-25", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00089", "name": "Jordan Abrina", "firstName": "Jordan", "lastName": "Abrina", "middleName": "Fernandez", "nickname": "Jordan", "kawan": "Mangaf", "area": "Mangaf", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1977-10-24", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "Active", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00090", "name": "Jocelyn Hiolen", "firstName": "Jocelyn", "lastName": "Hiolen", "middleName": "Bongcal", "nickname": "Jocelyn", "kawan": "Mangaf", "area": "Mangaf", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1982-10-24", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "Active", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00091", "name": "Maria Jennyllah Jennifer Granada", "firstName": "Maria Jennyllah Jennifer", "lastName": "Granada", "middleName": "Villanueva", "nickname": "Jennyllah", "kawan": "Mangaf", "area": "Mangaf", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1989-09-14", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "Active", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00092", "name": "Maricel Besmar", "firstName": "Maricel", "lastName": "Besmar", "middleName": "Amparo", "nickname": "Maricel", "kawan": "Mangaf", "area": "Mangaf", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1971-06-02", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "Active", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00093", "name": "Sandino Regacho", "firstName": "Sandino", "lastName": "Regacho", "middleName": "Mangayo", "nickname": "Joe", "kawan": "Tesalonica", "area": "Tesalonica", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "2063-09-14", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00094", "name": "Rizalina Regacho", "firstName": "Rizalina", "lastName": "Regacho", "middleName": "Roque", "nickname": "Riza", "kawan": "Tesalonica", "area": "Tesalonica", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "2067-12-30", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00095", "name": "Laarni Cariloria", "firstName": "Laarni", "lastName": "Cariloria", "middleName": "Vicillaje", "nickname": "Laarni", "kawan": "Tesalonica", "area": "Tesalonica", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1987-05-19", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00096", "name": "Jethro Cariloria", "firstName": "Jethro", "lastName": "Cariloria", "middleName": "Pavia", "nickname": "Jethro", "kawan": "Tesalonica", "area": "Tesalonica", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1987-09-19", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00097", "name": "Rebecca Nobong", "firstName": "Rebecca", "lastName": "Nobong", "middleName": "Obias", "nickname": "Rebecca", "kawan": "Tesalonica", "area": "Tesalonica", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1987-07-02", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00098", "name": "Anthony Halog", "firstName": "Anthony", "lastName": "Halog", "middleName": "Regacho", "nickname": "Anthony", "kawan": "Tesalonica", "area": "Tesalonica", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1988-02-02", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00099", "name": "Angielyn Halog", "firstName": "Angielyn", "lastName": "Halog", "middleName": "Cordero", "nickname": "Angie", "kawan": "Tesalonica", "area": "Tesalonica", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1990-07-09", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00100", "name": "Connie Punzalan", "firstName": "Connie", "lastName": "Punzalan", "middleName": "Martinez", "nickname": "Con", "kawan": "Pastoral", "area": "Pastoral", "contact": "97554688", "mobile2": "", "email": "", "facebook": "", "dob": "1977-09-14", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "Lay Minister", "gender": "", "remarks": "MINISTER -", "occupation": "", "company": ""}, {"code": "KW-00101", "name": "Neddy Dalomino", "firstName": "Neddy", "lastName": "Dalomino", "middleName": "Olango", "nickname": "", "kawan": "Tesalonica", "area": "Tesalonica", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1985-10-18", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00102", "name": "Raymond Nieves", "firstName": "Raymond", "lastName": "Nieves", "middleName": "Quirao", "nickname": "Mon", "kawan": "Tesalonica", "area": "Tesalonica", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1988-09-19", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00103", "name": "Claire Consul", "firstName": "Claire", "lastName": "Consul", "middleName": "King", "nickname": "", "kawan": "Tesalonica", "area": "Tesalonica", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1979-08-10", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00104", "name": "Jude Consul", "firstName": "Jude", "lastName": "Consul", "middleName": "Mercader", "nickname": "", "kawan": "Tesalonica", "area": "Tesalonica", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1970-09-10", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00105", "name": "Grace Adranos", "firstName": "Grace", "lastName": "Adranos", "middleName": "Sta Ana", "nickname": "Grasya", "kawan": "Mangaf", "area": "Mangaf", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1971-06-04", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "Active", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00106", "name": "Jeffrey Ladines", "firstName": "Jeffrey", "lastName": "Ladines", "middleName": "Oblena", "nickname": "", "kawan": "Achaia", "area": "Achaia", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1984-06-18", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00107", "name": "Jenalen Ladines", "firstName": "Jenalen", "lastName": "Ladines", "middleName": "Gonzales", "nickname": "Jenn", "kawan": "Achaia", "area": "Achaia", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1982-01-16", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00108", "name": "Angelina Entia", "firstName": "Angelina", "lastName": "Entia", "middleName": "Tacan", "nickname": "", "kawan": "Achaia", "area": "Achaia", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1980-11-03", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00109", "name": "Jessier Sumaljag", "firstName": "Jessier", "lastName": "Sumaljag", "middleName": "Cilmar Birthday", "nickname": "Jessie", "kawan": "Patmos", "area": "Patmos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1989-04-17", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00110", "name": "Alma Pamintuan", "firstName": "Alma", "lastName": "Pamintuan", "middleName": "Garcia", "nickname": "", "kawan": "Macedonia", "area": "Macedonia", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1978-01-26", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00111", "name": "Merlyn Francisco", "firstName": "Merlyn", "lastName": "Francisco", "middleName": "Javier", "nickname": "", "kawan": "Macedonia", "area": "Macedonia", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1970-03-05", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00112", "name": "Mylene Galumba", "firstName": "Mylene", "lastName": "Galumba", "middleName": "F.", "nickname": "Mylene", "kawan": "Online", "area": "Other", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1986-03-21", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00113", "name": "Catherine Gaspi", "firstName": "Catherine", "lastName": "Gaspi", "middleName": "Angeles", "nickname": "", "kawan": "Jerusalem", "area": "Jerusalem", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1982-01-27", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00114", "name": "Jennifer Siapo", "firstName": "Jennifer", "lastName": "Siapo", "middleName": "K.", "nickname": "Jennifer", "kawan": "Online", "area": "Other", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1991-10-04", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00115", "name": "Helen Santiago", "firstName": "Helen", "lastName": "Santiago", "middleName": "Garcia.", "nickname": "", "kawan": "Macedonia", "area": "Macedonia", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1984-10-26", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00116", "name": "Maria Asuncion Bobias", "firstName": "Maria Asuncion", "lastName": "Bobias", "middleName": "Magno", "nickname": "Marison", "kawan": "Tesalonica", "area": "Tesalonica", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1970-11-11", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00117", "name": "Gretchen Noquira", "firstName": "Gretchen", "lastName": "Noquira", "middleName": "Guardiano", "nickname": "Gretch", "kawan": "Filipos", "area": "Filipos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1991-04-24", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00118", "name": "Marissa Centino", "firstName": "Marissa", "lastName": "Centino", "middleName": "", "nickname": "", "kawan": "", "area": "Patmos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00119", "name": "Regina Jalayajay", "firstName": "Regina", "lastName": "Jalayajay", "middleName": "", "nickname": "", "kawan": "Patmos", "area": "Patmos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00120", "name": "Jenelyn Pedregosa", "firstName": "Jenelyn", "lastName": "Pedregosa", "middleName": "", "nickname": "", "kawan": "", "area": "Other", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00121", "name": "Belinda Aparri", "firstName": "Belinda", "lastName": "Aparri", "middleName": "", "nickname": "", "kawan": "", "area": "Other", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00122", "name": "Shay Abarientos", "firstName": "Shay", "lastName": "Abarientos", "middleName": "", "nickname": "", "kawan": "", "area": "Filipos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00123", "name": "Jojo Gata", "firstName": "Jojo", "lastName": "Gata", "middleName": "", "nickname": "", "kawan": "Jerusalem", "area": "Jerusalem", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00124", "name": "Celly Dsouza", "firstName": "Celly", "lastName": "Dsouza", "middleName": "", "nickname": "", "kawan": "Jerusalem", "area": "Jerusalem", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "2063-09-03", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00125", "name": "Ginalyn Bacani", "firstName": "Ginalyn", "lastName": "Bacani", "middleName": "", "nickname": "", "kawan": "Philadelphia", "area": "Philadelphia", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00126", "name": "Margie Tagamolila", "firstName": "Margie", "lastName": "Tagamolila", "middleName": "", "nickname": "", "kawan": "", "area": "Philadelphia", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00127", "name": "Nelda Acejo", "firstName": "Nelda", "lastName": "Acejo", "middleName": "", "nickname": "", "kawan": "Achaia", "area": "", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1971-12-05", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00128", "name": "Sunny Ojoko", "firstName": "Sunny", "lastName": "Ojoko", "middleName": "Ajibola", "nickname": "", "kawan": "", "area": "JERUSALEM", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00129", "name": "Vuena Paniel", "firstName": "Vuena", "lastName": "Paniel", "middleName": "", "nickname": "", "kawan": "", "area": "Mangaf", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "Active", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00130", "name": "May Avenido", "firstName": "May", "lastName": "Avenido", "middleName": "", "nickname": "", "kawan": "Jerusalem", "area": "Jerusalem", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00131", "name": "Noemi Perez", "firstName": "Noemi", "lastName": "Perez", "middleName": "", "nickname": "Noi", "kawan": "Jerusalem", "area": "Jerusalem", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1984-11-19", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "Elmer Geneston", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00132", "name": "Rhea Del Rosario", "firstName": "Rhea", "lastName": "Del Rosario", "middleName": "", "nickname": "", "kawan": "Macedonia", "area": "Macedonia", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1992-09-07", "address": "", "addressPhilippines": "", "dateBaptised": "March 2023", "convertedBy": "Mary Joy Gallenito", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00133", "name": "Randy Dela Torre", "firstName": "Randy", "lastName": "Dela Torre", "middleName": "", "nickname": "Ran", "kawan": "Filipos", "area": "Filipos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00134", "name": "Lorina Cano-os", "firstName": "Lorina", "lastName": "Cano-os", "middleName": "", "nickname": "Lori", "kawan": "Mangaf", "area": "Mangaf", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "Active", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00135", "name": "Nina Bonifacio", "firstName": "Nina", "lastName": "Bonifacio", "middleName": "", "nickname": "Nini", "kawan": "Filipos", "area": "Filipos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00136", "name": "Bukola Ojoko", "firstName": "Bukola", "lastName": "Ojoko", "middleName": "Anike", "nickname": "Buk", "kawan": "Jerusalem", "area": "Jerusalem", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00137", "name": "Bokula Agibula", "firstName": "Bokula", "lastName": "Agibula", "middleName": "", "nickname": "", "kawan": "Jerusalem", "area": "", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00138", "name": "Sherilyne Manito", "firstName": "Sherilyne", "lastName": "Manito", "middleName": "", "nickname": "She", "kawan": "Tesalonica", "area": "Tesalonica", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1978-03-06", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00139", "name": "Geleen Robidillo", "firstName": "Geleen", "lastName": "Robidillo", "middleName": "", "nickname": "Geleen", "kawan": "Other", "area": "Other", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00140", "name": "Vanissa Dacanay", "firstName": "Vanissa", "lastName": "Dacanay", "middleName": "", "nickname": "Vanissa", "kawan": "Patmos", "area": "Patmos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "Elmer Geneston", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00141", "name": "Rita Del Mundo", "firstName": "Rita", "lastName": "Del Mundo", "middleName": "", "nickname": "", "kawan": "Other", "area": "Other", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00142", "name": "Angelica Fortuna", "firstName": "Angelica", "lastName": "Fortuna", "middleName": "", "nickname": "Angeli", "kawan": "Patmos", "area": "Patmos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00143", "name": "Paul Serrano", "firstName": "Paul", "lastName": "Serrano", "middleName": "", "nickname": "Paul", "kawan": "Filipos", "area": "Filipos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "2025-12-15", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00144", "name": "Marilou Coronado", "firstName": "Marilou", "lastName": "Coronado", "middleName": "", "nickname": "", "kawan": "Macedonia", "area": "Macedonia", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00145", "name": "Rose Limbaga", "firstName": "Rose", "lastName": "Limbaga", "middleName": "", "nickname": "Rose", "kawan": "Patmos", "area": "Patmos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00146", "name": "Anjula Ceremonia", "firstName": "Anjula", "lastName": "Ceremonia", "middleName": "", "nickname": "Anjula", "kawan": "Filipos", "area": "Filipos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00147", "name": "Marilou Coronado", "firstName": "Marilou", "lastName": "Coronado", "middleName": "Billano", "nickname": "", "kawan": "Macedonia", "area": "Macedonia", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "September 29, 2017", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00148", "name": "Rose Ann Vitan", "firstName": "Rose Ann", "lastName": "Vitan", "middleName": "", "nickname": "Rose", "kawan": "Jerusalem", "area": "Jerusalem", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "Gloria Solis", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00149", "name": "Rose Ann Vitan", "firstName": "Rose Ann", "lastName": "Vitan", "middleName": "", "nickname": "", "kawan": "", "area": "Jerusale", "contact": "69067161", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "April 01, 2023", "convertedBy": "Sis Gloria", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00151", "name": "Genesis Villaruel", "firstName": "Genesis", "lastName": "Villaruel", "middleName": "", "nickname": "Cruel", "kawan": "Philadelphia", "area": "Philadelphia", "contact": "97876814", "mobile2": "", "email": "", "facebook": "", "dob": "1989-06-15", "address": "", "addressPhilippines": "", "dateBaptised": "April 14, 2023", "convertedBy": "Bro Paul Decano", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00152", "name": "Christine Tabigne", "firstName": "Christine", "lastName": "Tabigne", "middleName": "", "nickname": "", "kawan": "Macedonia", "area": "Macedonia", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "2025-12-15", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "Female", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00153", "name": "Paul Serrano", "firstName": "Paul", "lastName": "Serrano", "middleName": "", "nickname": "", "kawan": "Filipos", "area": "Filipos", "contact": "50896594", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "#8nlower Bernardocomp Brgy Pasong Tamo Qc", "dateBaptised": "", "convertedBy": "Sis Maritess Tamboong", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00154", "name": "Vanessa Inchoco", "firstName": "Vanessa", "lastName": "Inchoco", "middleName": "", "nickname": "", "kawan": "Patmos", "area": "Patmos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00155", "name": "Jenelyn Pedregosa", "firstName": "Jenelyn", "lastName": "Pedregosa", "middleName": "", "nickname": "", "kawan": "Other", "area": "Other", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00156", "name": "Jean Villacruel", "firstName": "Jean", "lastName": "Villacruel", "middleName": "", "nickname": "", "kawan": "Philadelphia", "area": "Philadelphia", "contact": "69972397", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "April 14, 2023", "convertedBy": "Paul Decano", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00158", "name": "Lorina Baingan", "firstName": "Lorina", "lastName": "Baingan", "middleName": "A", "nickname": "Lorina", "kawan": "Jerusalem", "area": "Jerusalem", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "Evelyn Labitag", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00150", "name": "Lina Diaz", "firstName": "Lina", "lastName": "Diaz", "middleName": "", "nickname": "", "kawan": "Macedonia", "area": "Macedonia", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "Sis Merlyn Franmcisco", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00161", "name": "Amelyn Catang Catang", "firstName": "Amelyn", "lastName": "Catang Catang", "middleName": "", "nickname": "", "kawan": "Patmos", "area": "Patmos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00162", "name": "Lina Diaz", "firstName": "Lina", "lastName": "Diaz", "middleName": "", "nickname": "Lina", "kawan": "Macedonia", "area": "Macedonia", "contact": "51277962", "mobile2": "", "email": "", "facebook": "", "dob": "1977-09-20", "address": "", "addressPhilippines": "", "dateBaptised": "November 18, 2022", "convertedBy": "Merlyn Francisco", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00163", "name": "Esther Damarish Changgalan", "firstName": "Esther Damarish", "lastName": "Changgalan", "middleName": "", "nickname": "", "kawan": "Other", "area": "Other", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00164", "name": "Manilyn Gallardo", "firstName": "Manilyn", "lastName": "Gallardo", "middleName": "", "nickname": "Manilyn", "kawan": "Jerusalem", "area": "Jerusalem", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "Lorena Dumayog", "status": "InActive", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00165", "name": "Manilyn Gallardo", "firstName": "Manilyn", "lastName": "Gallardo", "middleName": "", "nickname": "", "kawan": "Jerusalem", "area": "Jerusalem", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "May 19,2023", "convertedBy": "Lorena Dumayog", "status": "InActive", "designation": "Member", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00166", "name": "Madelen Lapined", "firstName": "Madelen", "lastName": "Lapined", "middleName": "", "nickname": "", "kawan": "Jerusalem", "area": "Jerusalem", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "May 19,2023", "convertedBy": "Manilyn  Gallardo", "status": "InActive", "designation": "Member", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00167", "name": "Irene Facondo", "firstName": "Irene", "lastName": "Facondo", "middleName": "", "nickname": "", "kawan": "Jerusalem", "area": "Jerusalem", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "May 19,2023", "convertedBy": "MarciaLiza Samson", "status": "InActive", "designation": "Member", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00168", "name": "Manilyn Gallardo", "firstName": "Manilyn", "lastName": "Gallardo", "middleName": "", "nickname": "", "kawan": "Jerusalem", "area": "Jerusalem", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "May 19,2023", "convertedBy": "Lorena Dumayog", "status": "InActive", "designation": "Member", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00169", "name": "Vanessa Inchoco", "firstName": "Vanessa", "lastName": "Inchoco", "middleName": "M.", "nickname": "Vanessa", "kawan": "Patmos", "area": "Patmos", "contact": "69926061", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "Evelyn Labitag", "status": "InActive", "designation": "Member", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00170", "name": "Rose Paculor", "firstName": "Rose", "lastName": "Paculor", "middleName": "", "nickname": "", "kawan": "Jerusalem", "area": "Jerusalem", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "Evelyn Labitag", "status": "InActive", "designation": "Member", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00171", "name": "Jeramie Paguiringan", "firstName": "Jeramie", "lastName": "Paguiringan", "middleName": "", "nickname": "Jera", "kawan": "Patmos", "area": "Patmos", "contact": "66175977", "mobile2": "", "email": "", "facebook": "", "dob": "1990-03-07", "address": "", "addressPhilippines": "", "dateBaptised": "June 6, 2025", "convertedBy": "Ana Dolor", "status": "InActive", "designation": "Member", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00172", "name": "Jeffril Declaro", "firstName": "Jeffril", "lastName": "Declaro", "middleName": "", "nickname": "Jeffril", "kawan": "Filipos", "area": "Filipos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "2025-11-22", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "Emy Rodriguez", "status": "InActive", "designation": "Member", "gender": "Male", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00173", "name": "Randy Ibasco", "firstName": "Randy", "lastName": "Ibasco", "middleName": "", "nickname": "Randy", "kawan": "Patmos", "area": "Patmos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "leony mariano", "status": "InActive", "designation": "Member", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00174", "name": "Geelyn Quilantang", "firstName": "Geelyn", "lastName": "Quilantang", "middleName": "", "nickname": "Geelyn", "kawan": "Patmos", "area": "Patmos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "leony mariano", "status": "InActive", "designation": "Member", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00175", "name": "Jinnalyn Jumawan", "firstName": "Jinnalyn", "lastName": "Jumawan", "middleName": "", "nickname": "Jinnalyn", "kawan": "Patmos", "area": "Patmos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "Member", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00176", "name": "Michelle Lagong", "firstName": "Michelle", "lastName": "Lagong", "middleName": "", "nickname": "Michelle", "kawan": "Jerusalem", "area": "Jerusalem", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "Member", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00177", "name": "Cara Belandres", "firstName": "Cara", "lastName": "Belandres", "middleName": "", "nickname": "Cara", "kawan": "Jerusalem", "area": "Jerusalem", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1988-10-17", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "Member", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00178", "name": "Genevieve Tolentino", "firstName": "Genevieve", "lastName": "Tolentino", "middleName": "", "nickname": "Genevieve", "kawan": "Jerusalem", "area": "Jerusalem", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1994-08-26", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "Member", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00179", "name": "Jesica Lakshman", "firstName": "Jesica", "lastName": "Lakshman", "middleName": "", "nickname": "Jesica", "kawan": "Philadelphia", "area": "Philadelphia", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "Member", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00180", "name": "Juralyn Caballero", "firstName": "Juralyn", "lastName": "Caballero", "middleName": "", "nickname": "Juralyn", "kawan": "Philadelphia", "area": "Philadelphia", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1995-10-28", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "Member", "gender": "Female", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00181", "name": "Roela Bongato", "firstName": "Roela", "lastName": "Bongato", "middleName": "", "nickname": "Roela", "kawan": "Other", "area": "Other", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "Member", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00182", "name": "Daina Ibasco", "firstName": "Daina", "lastName": "Ibasco", "middleName": "", "nickname": "Daina", "kawan": "Patmos", "area": "Patmos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "Randy Ibasco", "status": "InActive", "designation": "Member", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00183", "name": "Florinda Carlos", "firstName": "Florinda", "lastName": "Carlos", "middleName": "", "nickname": "Florinda", "kawan": "Patmos", "area": "Patmos", "contact": "65590863", "mobile2": "", "email": "", "facebook": "", "dob": "1988-05-12", "address": "", "addressPhilippines": "", "dateBaptised": "November 1, 2024", "convertedBy": "Michelle Limo", "status": "InActive", "designation": "Member", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00184", "name": "Rosalie Datu", "firstName": "Rosalie", "lastName": "Datu", "middleName": "", "nickname": "Rosalie", "kawan": "Patmos", "area": "Patmos", "contact": "67748618", "mobile2": "", "email": "", "facebook": "", "dob": "1981-10-09", "address": "", "addressPhilippines": "", "dateBaptised": "May 31, 2024", "convertedBy": "Elmer Geneston", "status": "InActive", "designation": "Member", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00185", "name": "Michelle Limo", "firstName": "Michelle", "lastName": "Limo", "middleName": "", "nickname": "", "kawan": "Patmos", "area": "Patmos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "Member", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00186", "name": "Bernard Artoza", "firstName": "Bernard", "lastName": "Artoza", "middleName": "", "nickname": "Bernard", "kawan": "Philadelphia", "area": "Philadelphia", "contact": "51597610", "mobile2": "", "email": "", "facebook": "", "dob": "1992-07-03", "address": "", "addressPhilippines": "", "dateBaptised": "-june 20, 2025", "convertedBy": "Apolinario Decano", "status": "InActive", "designation": "Member", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00187", "name": "Rosemarie Mundiz", "firstName": "Rosemarie", "lastName": "Mundiz", "middleName": "", "nickname": "Rosemarie", "kawan": "Macedonia", "area": "Macedonia", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "Member", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00188", "name": "Penny Posadas", "firstName": "Penny", "lastName": "Posadas", "middleName": "", "nickname": "Penny", "kawan": "Macedonia", "area": "Macedonia", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "Joy Gallenito", "status": "InActive", "designation": "Member", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00189", "name": "Mark Posadas", "firstName": "Mark", "lastName": "Posadas", "middleName": "Vidal", "nickname": "Mark", "kawan": "Macedonia", "area": "Macedonia", "contact": "67776953", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "Mary Joy Gallenito", "status": "InActive", "designation": "Member", "gender": "Male", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00190", "name": "Lei Ann Ducusin", "firstName": "Lei Ann", "lastName": "Ducusin", "middleName": "", "nickname": "Lei Ann", "kawan": "Filipos", "area": "Filipos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "Member", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00191", "name": "Elvie Sevilla", "firstName": "Elvie", "lastName": "Sevilla", "middleName": "Velasco", "nickname": "Elvie", "kawan": "Jerusalem", "area": "Jerusalem", "contact": "66807450", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "Angeline Gepte", "status": "InActive", "designation": "Member", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00192", "name": "Lani Pineda", "firstName": "Lani", "lastName": "Pineda", "middleName": "Banag", "nickname": "Lani", "kawan": "Berrea", "area": "Berrea", "contact": "66772678", "mobile2": "", "email": "", "facebook": "", "dob": "2068-10-20", "address": "", "addressPhilippines": "", "dateBaptised": "-may 2, 2025", "convertedBy": "Elmer Geneston", "status": "InActive", "designation": "Member", "gender": "Female", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00193", "name": "Mildred Cabulisan", "firstName": "Mildred", "lastName": "Cabulisan", "middleName": "", "nickname": "Mildred", "kawan": "BERREA", "area": "BERREA", "contact": "+965186306", "mobile2": "", "email": "", "facebook": "", "dob": "1996-03-19", "address": "", "addressPhilippines": "", "dateBaptised": "January 3, 2025", "convertedBy": "Elmer Geneston", "status": "InActive", "designation": "Member", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00195", "name": "Marites Lopez", "firstName": "Marites", "lastName": "Lopez", "middleName": "", "nickname": "Marites", "kawan": "Tesalonica", "area": "Tesalonica", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "Member", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00196", "name": "Rogel Sale", "firstName": "Rogel", "lastName": "Sale", "middleName": "", "nickname": "Rogel", "kawan": "Filipos", "area": "Filipos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "Member", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00197", "name": "Nicky Correjado", "firstName": "Nicky", "lastName": "Correjado", "middleName": "", "nickname": "", "kawan": "Patmos", "area": "Patmos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1992-09-07", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "Member", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00198", "name": "Rowela Bongato", "firstName": "Rowela", "lastName": "Bongato", "middleName": "", "nickname": "Rowela", "kawan": "Filipos", "area": "Filipos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "Mark Jay Tubigan", "status": "InActive", "designation": "Member", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00199", "name": "Jorell Marquez", "firstName": "Jorell", "lastName": "Marquez", "middleName": "", "nickname": "Jorell", "kawan": "Filipos", "area": "Filipos", "contact": "55781994", "mobile2": "", "email": "", "facebook": "", "dob": "1995-07-01", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "Glenniss Tubigan", "status": "InActive", "designation": "Member", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00200", "name": "Rose Mariano", "firstName": "Rose", "lastName": "Mariano", "middleName": "Valene", "nickname": "Rose", "kawan": "Filipos", "area": "Filipos", "contact": "97256954", "mobile2": "", "email": "", "facebook": "", "dob": "1981-02-14", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "Member", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00202", "name": "Ferdinand Sandoy", "firstName": "Ferdinand", "lastName": "Sandoy", "middleName": "", "nickname": "Ferdinand", "kawan": "Philadelphia", "area": "Philadelphia", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "Apolinario Decano", "status": "InActive", "designation": "Member", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00203", "name": "Cristine Azagra", "firstName": "Cristine", "lastName": "Azagra", "middleName": "", "nickname": "Cristine", "kawan": "Berrea", "area": "Berrea", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "Member", "gender": "Female", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00204", "name": "Miriam Odero", "firstName": "Miriam", "lastName": "Odero", "middleName": "", "nickname": "", "kawan": "Jerusalem", "area": "Jerusalem", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "Evelyn Labitag", "status": "InActive", "designation": "Member", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00205", "name": "Rose Mariano", "firstName": "Rose", "lastName": "Mariano", "middleName": "", "nickname": "Vallenne", "kawan": "Filipos", "area": "Filipos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "Mark Jay Tubigan", "status": "InActive", "designation": "Member", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00206", "name": "Julie Ann Absin", "firstName": "Julie Ann", "lastName": "Absin", "middleName": "", "nickname": "", "kawan": "BERREA", "area": "BERREA", "contact": "97700912", "mobile2": "", "email": "", "facebook": "", "dob": "1977-07-14", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "Elmer Geneston", "status": "InActive", "designation": "Member", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00207", "name": "Rodelyn Abacahin", "firstName": "Rodelyn", "lastName": "Abacahin", "middleName": "Del Puerto", "nickname": "Rodelyn", "kawan": "BERREA", "area": "BERREA", "contact": "66327934", "mobile2": "", "email": "", "facebook": "", "dob": "1984-07-04", "address": "", "addressPhilippines": "", "dateBaptised": "July 20, 2025", "convertedBy": "Elmer Geneston", "status": "InActive", "designation": "Member", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00208", "name": "Lesmie Tam", "firstName": "Lesmie", "lastName": "Tam", "middleName": "Okum", "nickname": "Lesmie", "kawan": "Filipos", "area": "Filipos", "contact": "66487184", "mobile2": "", "email": "", "facebook": "", "dob": "1991-03-16", "address": "", "addressPhilippines": "", "dateBaptised": "July 25, 2025", "convertedBy": "Mark Jay Tubigan", "status": "InActive", "designation": "Member", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00209", "name": "Jakerson Caalim", "firstName": "Jakerson", "lastName": "Caalim", "middleName": "", "nickname": "Jakerson", "kawan": "Philadelphia", "area": "Philadelphia", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "Apolinario Decano", "status": "InActive", "designation": "Member", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00210", "name": "Ereka De Ocampo", "firstName": "Ereka", "lastName": "De Ocampo", "middleName": "", "nickname": "Ereka", "kawan": "Filipos", "area": "Filipos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "emy Rodriguez", "status": "InActive", "designation": "Member", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00211", "name": "Christalyne Arceo", "firstName": "Christalyne", "lastName": "Arceo", "middleName": "", "nickname": "Christalyne", "kawan": "Patmos", "area": "Patmos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "Leony Mariano", "status": "InActive", "designation": "Member", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00212", "name": "Norma Mamauang", "firstName": "Norma", "lastName": "Mamauang", "middleName": "", "nickname": "", "kawan": "Berrea", "area": "Berrea", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "Elmer Miniano", "status": "InActive", "designation": "Member", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00216", "name": "Norma Mamauang", "firstName": "Norma", "lastName": "Mamauang", "middleName": "", "nickname": "", "kawan": "BERREA", "area": "BERREA", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "Elmer Geneston", "status": "InActive", "designation": "Member", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00217", "name": "Perlita Buenaagua", "firstName": "Perlita", "lastName": "Buenaagua", "middleName": "", "nickname": "Perlita", "kawan": "BERREA", "area": "BERREA", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "Elmer Geneston", "status": "InActive", "designation": "Member", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00218", "name": "Joyce Soriano", "firstName": "Joyce", "lastName": "Soriano", "middleName": "", "nickname": "Joyce", "kawan": "Macedonia", "area": "Macedonia", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "Member", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00219", "name": "Jessa Pahayahay", "firstName": "Jessa", "lastName": "Pahayahay", "middleName": "", "nickname": "", "kawan": "Patmos", "area": "Patmos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "2025-12-15", "address": "", "addressPhilippines": "", "dateBaptised": "Aug 29,2025", "convertedBy": "Jessier Sumaljag", "status": "InActive", "designation": "Member", "gender": "Female", "remarks": "Visitor", "occupation": "", "company": ""}, {"code": "KW-00220", "name": "Loraine Insigne", "firstName": "Loraine", "lastName": "Insigne", "middleName": "", "nickname": "Grace", "kawan": "Jerusalem", "area": "Jerusalem", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "Member", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00221", "name": "Mildred Cabulisan", "firstName": "Mildred", "lastName": "Cabulisan", "middleName": "", "nickname": "", "kawan": "BERREA", "area": "BERREA", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "Member", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00222", "name": "Lowela Bagarino", "firstName": "Lowela", "lastName": "Bagarino", "middleName": "", "nickname": "", "kawan": "Berrea", "area": "Berrea", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "Aug 29,2025", "convertedBy": "Elmer Geneston", "status": "InActive", "designation": "Member", "gender": "", "remarks": "Visitor", "occupation": "", "company": ""}, {"code": "KW-00223", "name": "Jake Fajardo", "firstName": "Jake", "lastName": "Fajardo", "middleName": "", "nickname": "Jake", "kawan": "Philadelphia", "area": "Philadelphia", "contact": "67739956", "mobile2": "", "email": "", "facebook": "", "dob": "1994-09-25", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "Apolinario Decano", "status": "InActive", "designation": "Member", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00224", "name": "Dolores Ursos", "firstName": "Dolores", "lastName": "Ursos", "middleName": "", "nickname": "Dolores", "kawan": "BERREA", "area": "BERREA", "contact": "69678479", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "Elmer Geneston", "status": "InActive", "designation": "Member", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00225", "name": "Cindy Ilagan", "firstName": "Cindy", "lastName": "Ilagan", "middleName": "", "nickname": "", "kawan": "Filipos", "area": "Filipos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "Glennis Tubigan", "status": "InActive", "designation": "Member", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00227", "name": "Flordeliza Cardoza", "firstName": "Flordeliza", "lastName": "Cardoza", "middleName": "", "nickname": "", "kawan": "Macedonia", "area": "Macedonia", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "Connie Punzalan Jimenez", "status": "InActive", "designation": "Member", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00228", "name": "Rose Libarnez", "firstName": "Rose", "lastName": "Libarnez", "middleName": "", "nickname": "", "kawan": "Patmos", "area": "Patmos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "Sep 28,2025", "convertedBy": "Michelle Limo", "status": "InActive", "designation": "Member", "gender": "", "remarks": "Visitor", "occupation": "", "company": ""}, {"code": "KW-00229", "name": "Edwin Lopez", "firstName": "Edwin", "lastName": "Lopez", "middleName": "", "nickname": "", "kawan": "Patmos", "area": "Patmos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "Sep 28,2025", "convertedBy": "Leony Agustin M.", "status": "InActive", "designation": "Member", "gender": "", "remarks": "Visitor", "occupation": "", "company": ""}, {"code": "KW-00231", "name": "Analyn Villanueva", "firstName": "Analyn", "lastName": "Villanueva", "middleName": "", "nickname": "", "kawan": "Macedonia", "area": "Macedonia", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "1983-05-19", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "InActive", "designation": "Member", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00232", "name": "Lorna Palarca", "firstName": "Lorna", "lastName": "Palarca", "middleName": "", "nickname": "", "kawan": "Pastoral", "area": "Pastoral", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "Connie", "status": "InActive", "designation": "Member", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00233", "name": "Javier Carbonel", "firstName": "Javier", "lastName": "Carbonel", "middleName": "", "nickname": "", "kawan": "Patmos", "area": "Patmos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "Leony A", "status": "InActive", "designation": "Member", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KWM-00157", "name": "Tess2 Tess", "firstName": "Tess2", "lastName": "Tess", "middleName": "", "nickname": "", "kawan": "Mangaf", "area": "Mangaf", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "Active", "designation": "Member", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "KW-00160", "name": "Sairah Mae Dayota", "firstName": "Sairah Mae", "lastName": "Dayota", "middleName": "", "nickname": "", "kawan": "Patmos", "area": "Patmos", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "Nov 23,2025", "convertedBy": "Elmer Geneston", "status": "InActive", "designation": "Member", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "", "name": "Member 226", "firstName": "", "lastName": "", "middleName": "", "nickname": "", "kawan": "", "area": "", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "", "name": "Member 227", "firstName": "", "lastName": "", "middleName": "", "nickname": "", "kawan": "", "area": "", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "", "name": "Member 228", "firstName": "", "lastName": "", "middleName": "", "nickname": "", "kawan": "", "area": "", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "", "name": "Member 229", "firstName": "", "lastName": "", "middleName": "", "nickname": "", "kawan": "", "area": "", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "", "name": "Member 230", "firstName": "", "lastName": "", "middleName": "", "nickname": "", "kawan": "", "area": "", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "", "name": "Member 231", "firstName": "", "lastName": "", "middleName": "", "nickname": "", "kawan": "", "area": "", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}, {"code": "", "name": "Member 232", "firstName": "", "lastName": "", "middleName": "", "nickname": "", "kawan": "", "area": "", "contact": "", "mobile2": "", "email": "", "facebook": "", "dob": "", "address": "", "addressPhilippines": "", "dateBaptised": "", "convertedBy": "", "status": "", "designation": "", "gender": "", "remarks": "", "occupation": "", "company": ""}];
+
+
+function downloadFile(filename, content, mime) {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+function parseCSV(text) {
+  const rows = [];
+  let row = [], field = '', inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i], next = text[i + 1];
+    if (inQuotes) {
+      if (c === '"' && next === '"') { field += '"'; i++; }
+      else if (c === '"') { inQuotes = false; }
+      else { field += c; }
+    } else {
+      if (c === '"') { inQuotes = true; }
+      else if (c === ',') { row.push(field); field = ''; }
+      else if (c === '\r') { /* skip */ }
+      else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+      else { field += c; }
+    }
+  }
+  if (field.length || row.length) { row.push(field); rows.push(row); }
+  return rows.filter(r => r.some(v => v !== ''));
+}
+function csvToObjects(text) {
+  const rows = parseCSV(text);
+  if (rows.length === 0) return [];
+  const headers = rows[0].map(h => h.trim());
+  return rows.slice(1).map(r => {
+    const obj = {};
+    headers.forEach((h, idx) => obj[h] = (r[idx] !== undefined ? r[idx] : '').trim());
+    return obj;
+  });
+}
+function normalizeHeader(h) { return String(h || '').toLowerCase().replace(/[^a-z0-9]/g, ''); }
+const MEMBER_FIELD_ALIASES = {
+  code: ['code', 'membercode', 'memberid', 'id'],
+  name: ['name', 'fullname'],
+  kawan: ['kawan'],
+  contact: ['contact', 'mobile', 'mobilenumber', 'mobilenumber1', 'phone'],
+  dob: ['dob', 'dateofbirth', 'birthday'],
+  occupation: ['occupation'],
+  company: ['company'],
+  address: ['address', 'homeaddress', 'addressabroad'],
+  nickname: ['nickname'],
+  middleName: ['middlename'],
+  area: ['area'],
+  mobile2: ['mobile2', 'mobilenumber2'],
+  email: ['email'],
+  facebook: ['facebook'],
+  addressPhilippines: ['addressphilippines', 'philippinesaddress'],
+  dateBaptised: ['datebaptised', 'baptismdate'],
+  convertedBy: ['convertedby'],
+  gender: ['gender'],
+  designation: ['designation'],
+  status: ['status'],
+  remarks: ['remarks', 'notes']
+};
+function mapCsvRowToMember(row) {
+  const normalized = {};
+  Object.keys(row).forEach(h => { normalized[normalizeHeader(h)] = row[h]; });
+  const member = {};
+  Object.entries(MEMBER_FIELD_ALIASES).forEach(([field, aliases]) => {
+    member[field] = '';
+    for (const a of aliases) {
+      if (normalized[a] !== undefined && normalized[a] !== '') { member[field] = normalized[a]; break; }
+    }
+  });
+  return member;
+}
+const MEMBER_EXPORT_HEADERS = ['Code','Name','Kawan','Contact','DOB','Occupation','Company','Address','Nickname','MiddleName','Area','Mobile2','Email','Facebook','AddressPhilippines','DateBaptised','ConvertedBy','Gender','Designation','Status','Remarks'];
+function memberExportRows() {
+  const rows = [MEMBER_EXPORT_HEADERS];
+  members.forEach(m => rows.push([
+    m.code, m.name, m.kawan, m.contact, m.dob, m.occupation, m.company, m.address,
+    m.nickname, m.middleName, m.area, m.mobile2, m.email, m.facebook, m.addressPhilippines,
+    m.dateBaptised, m.convertedBy, m.gender, m.designation, m.status, m.remarks
+  ].map(v => v || '')));
+  return rows;
+}
+
 let members = [];        
 let attendance = [];      
 let activeService = null; 
 let serviceNames = [];    
+let adminAccounts = [];     // [{ username, password, isMaster }] loaded from Firebase
+let editingMemberId = null; // when set, form is in "edit" mode
+let kawans = [];            // explicit list of kawan group names (in addition to any inferred from members)
+const DEFAULT_ADMIN_USERNAME = 'admin';
+const DEFAULT_ADMIN_PASSWORD = 'admin123';
 
 const statusLine = document.getElementById('statusLine');
 
@@ -328,24 +673,109 @@ async function fbPutObj(path, obj) {
   const res = await fetch(`${FIREBASE_DB_URL}/${path}.json`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(obj) });
   if (!res.ok) throw new Error('save failed: ' + path);
 }
+async function fbDelete(path) {
+  const res = await fetch(`${FIREBASE_DB_URL}/${path}.json`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('delete failed: ' + path);
+}
+
+let attendanceYearsIndex = []; // list of year strings ("2026") known to have attendance data
+let loadedYears = new Set();   // years currently merged into the in-memory `attendance` array
+function currentYearStr() { return String(new Date().getFullYear()); }
+function yearOf(dateStr) { return (dateStr || '').slice(0, 4); }
+
+async function ensureYearLoaded(year) {
+  if (!year || loadedYears.has(year)) return;
+  if (configMissing()) { loadedYears.add(year); return; }
+  try {
+    const recs = await fbGetArr('attendanceByYear/' + year);
+    const existingIds = new Set(attendance.map(a => a.id));
+    recs.forEach(r => { if (!existingIds.has(r.id)) attendance.push(r); });
+    loadedYears.add(year);
+  } catch (e) {
+    statusLine.textContent = 'Could not load ' + year + ' records.';
+  }
+}
+
+async function migrateOldAttendanceIfNeeded() {
+  if (configMissing()) return;
+  try {
+    const existingIndex = await fbGetArr('attendanceYears');
+    if (existingIndex && existingIndex.length > 0) { attendanceYearsIndex = existingIndex; return; }
+    const old = await fbGetArr('attendance');
+    if (!old || old.length === 0) { attendanceYearsIndex = []; return; }
+    statusLine.textContent = 'Upgrading attendance storage...';
+    const byYear = {};
+    old.forEach(r => {
+      const y = yearOf(r.serviceDate) || 'unknown';
+      (byYear[y] = byYear[y] || []).push(r);
+    });
+    const years = Object.keys(byYear).sort();
+    for (const y of years) {
+      await fbPutArr('attendanceByYear/' + y, byYear[y]);
+    }
+    await fbPutArr('attendanceYears', years);
+    await fbDelete('attendance');
+    attendanceYearsIndex = years;
+  } catch (e) {
+    console.error('Migration error:', e);
+  }
+}
 
 async function loadAll() {
   if (configMissing()) {
     statusLine.textContent = 'Not configured — add your Firebase Database URL.';
     renderCheckin(); renderMembers(); renderKawanDatalist(); renderReportOptions(); renderServiceNameOptions();
+    checkAdminSession();
     return;
   }
   statusLine.textContent = 'Loading...';
   try {
     members = await fbGetArr('members');
-    attendance = await fbGetArr('attendance');
     activeService = await fbGetObj('activeService');
     serviceNames = await fbGetArr('serviceNames');
+    await loadOrMigrateAdminAccounts();
+    const kw = await fbGetArr('kawans');
+    kawans = kw || [];
+
+    await migrateOldAttendanceIfNeeded();
+    attendance = [];
+    loadedYears = new Set();
+    await ensureYearLoaded(currentYearStr());
+    if (activeService && activeService.serviceDate) {
+      await ensureYearLoaded(yearOf(activeService.serviceDate));
+    }
     statusLine.textContent = 'Synced';
   } catch (e) {
     statusLine.textContent = 'Connection error.';
   }
   renderCheckin(); renderMembers(); renderKawanDatalist(); renderReportOptions(); renderActiveServiceStatus(); renderServiceNameOptions();
+  checkAdminSession();
+  renderKawanMgmt();
+  initSyncUI();
+}
+
+async function loadOrMigrateAdminAccounts() {
+  const accts = await fbGetArr('adminAccounts');
+  if (accts && accts.length > 0) { adminAccounts = accts; return; }
+  // Migrate legacy single-password setup (or bootstrap a fresh default master account)
+  let legacyPassword = null;
+  try {
+    const pw = await fbGetObj('adminPassword');
+    if (typeof pw === 'string' && pw) legacyPassword = pw;
+  } catch (e) { /* ignore */ }
+  adminAccounts = [{ username: DEFAULT_ADMIN_USERNAME, password: legacyPassword || DEFAULT_ADMIN_PASSWORD, isMaster: true }];
+  await fbPutArr('adminAccounts', adminAccounts);
+}
+
+async function saveKawans() {
+  if (configMissing()) return;
+  try { await fbPutArr('kawans', kawans); statusLine.textContent = 'Synced'; }
+  catch (e) { statusLine.textContent = 'Save error.'; }
+}
+async function saveAdminAccounts() {
+  if (configMissing()) return;
+  try { await fbPutArr('adminAccounts', adminAccounts); statusLine.textContent = 'Synced'; }
+  catch (e) { statusLine.textContent = 'Save error.'; }
 }
 
 async function saveMembers() {
@@ -353,10 +783,19 @@ async function saveMembers() {
   try { await fbPutArr('members', members); statusLine.textContent = 'Synced'; }
   catch (e) { statusLine.textContent = 'Save error.'; }
 }
-async function saveAttendanceData() {
+async function saveAttendanceData(year) {
   if (configMissing()) return;
-  try { await fbPutArr('attendance', attendance); statusLine.textContent = 'Synced'; }
-  catch (e) { statusLine.textContent = 'Save error.'; }
+  year = year || currentYearStr();
+  try {
+    const yearRecords = attendance.filter(a => yearOf(a.serviceDate) === year);
+    await fbPutArr('attendanceByYear/' + year, yearRecords);
+    if (!attendanceYearsIndex.includes(year)) {
+      attendanceYearsIndex.push(year);
+      attendanceYearsIndex.sort();
+      await fbPutArr('attendanceYears', attendanceYearsIndex);
+    }
+    statusLine.textContent = 'Synced';
+  } catch (e) { statusLine.textContent = 'Save error.'; }
 }
 async function saveActiveService() {
   if (configMissing()) return;
@@ -377,28 +816,220 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
     if (btn.dataset.tab === 'reports') renderReportOptions();
     if (btn.dataset.tab === 'checkin') renderCheckin();
+    if (btn.dataset.tab === 'admin') checkAdminSession();
   });
+});
+
+/* ---------------- ADMIN LOGIN GATE (multi-account) ---------------- */
+function findAccount(username) {
+  const key = (username || '').toLowerCase().trim();
+  return adminAccounts.find(a => (a.username || '').toLowerCase().trim() === key);
+}
+function isAdminLoggedIn() { return !!sessionStorage.getItem('attendance_admin_user'); }
+function currentAdminUsername() { return sessionStorage.getItem('attendance_admin_user') || ''; }
+function isMasterSession() {
+  const acct = findAccount(currentAdminUsername());
+  return !!(acct && acct.isMaster);
+}
+function setAdminLoggedIn(username) {
+  if (username) sessionStorage.setItem('attendance_admin_user', username);
+  else sessionStorage.removeItem('attendance_admin_user');
+}
+function checkAdminSession() {
+  const gate = document.getElementById('adminLoginGate');
+  const content = document.getElementById('adminContent');
+  if (isAdminLoggedIn()) {
+    gate.style.display = 'none';
+    content.style.display = 'block';
+    document.getElementById('adminWhoAmI').textContent = `Logged in as ${currentAdminUsername()}${isMasterSession() ? ' (Master Admin)' : ''}`;
+    document.getElementById('adminAccountsCard').style.display = isMasterSession() ? 'block' : 'none';
+    if (isMasterSession()) renderAdminAccounts();
+  } else {
+    gate.style.display = 'block';
+    content.style.display = 'none';
+    document.getElementById('adminUsernameInput').value = '';
+    document.getElementById('adminPasswordInput').value = '';
+    document.getElementById('adminLoginErr').textContent = '';
+  }
+}
+document.getElementById('adminLoginBtn').addEventListener('click', () => {
+  const username = document.getElementById('adminUsernameInput').value.trim();
+  const entered = document.getElementById('adminPasswordInput').value;
+  const acct = findAccount(username);
+  if (acct && acct.password === entered) {
+    setAdminLoggedIn(acct.username);
+    checkAdminSession();
+  } else {
+    document.getElementById('adminLoginErr').textContent = 'Incorrect username or password.';
+  }
+});
+document.getElementById('adminPasswordInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') document.getElementById('adminLoginBtn').click();
+});
+document.getElementById('adminUsernameInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') document.getElementById('adminPasswordInput').focus();
+});
+document.getElementById('adminLogoutBtn').addEventListener('click', () => {
+  setAdminLoggedIn(null);
+  checkAdminSession();
+});
+document.getElementById('changeAdminPasswordBtn').addEventListener('click', async () => {
+  const acct = findAccount(currentAdminUsername());
+  if (!acct) return;
+  const current = prompt('Enter your current password to confirm:');
+  if (current !== acct.password) { alert('Incorrect current password.'); return; }
+  const next = prompt('Enter new password:');
+  if (!next) return;
+  acct.password = next;
+  statusLine.textContent = 'Saving...';
+  await saveAdminAccounts();
+  alert('Password updated.');
+});
+function verifyAdminPasswordPrompt() {
+  const acct = findAccount(currentAdminUsername());
+  const expected = acct ? acct.password : DEFAULT_ADMIN_PASSWORD;
+  const entered = prompt('Enter your admin password to confirm this action:');
+  if (entered === null) return false;
+  if (entered !== expected) { alert('Incorrect password.'); return false; }
+  return true;
+}
+
+/* ---------------- ADMIN ACCOUNTS (Master Admin only) ---------------- */
+function renderAdminAccounts() {
+  const container = document.getElementById('adminAccountsList');
+  container.innerHTML = adminAccounts.map(a => `
+    <div class="kawan-mgmt-row">
+      <div class="kmr-name">${escapeHtml(a.username)} ${a.isMaster ? '<span class="count-pill">Master</span>' : ''}</div>
+      ${a.isMaster ? '' : `<button class="btn-danger" data-username="${escapeHtml(a.username)}">Remove</button>`}
+    </div>
+  `).join('');
+  container.querySelectorAll('.btn-danger').forEach(b => {
+    b.addEventListener('click', async () => {
+      if (!verifyAdminPasswordPrompt()) return;
+      if (!confirm(`Remove admin account "${b.dataset.username}"?`)) return;
+      adminAccounts = adminAccounts.filter(a => a.username !== b.dataset.username);
+      renderAdminAccounts();
+      statusLine.textContent = 'Saving...';
+      await saveAdminAccounts();
+    });
+  });
+}
+document.getElementById('addAdminAccountBtn').addEventListener('click', async () => {
+  if (!isMasterSession()) return;
+  const username = document.getElementById('newAdminUsername').value.trim();
+  const password = document.getElementById('newAdminPassword').value;
+  if (!username || !password) { alert('Enter both a username and a password.'); return; }
+  if (findAccount(username)) { alert('That username already exists.'); return; }
+  adminAccounts.push({ username, password, isMaster: false });
+  document.getElementById('newAdminUsername').value = '';
+  document.getElementById('newAdminPassword').value = '';
+  renderAdminAccounts();
+  statusLine.textContent = 'Saving...';
+  await saveAdminAccounts();
+  alert(`Account "${username}" created.`);
 });
 
 function renderCheckin() {
   const noActive = document.getElementById('noActiveMsg');
-  const area = document.getElementById('checkinArea');
-  if (!activeService || !activeService.serviceName) {
-    noActive.style.display = 'block';
-    area.style.display = 'none';
-    renderLiveRoster();
-    return;
-  }
-  noActive.style.display = 'none';
-  area.style.display = 'block';
-  document.getElementById('ciServiceName').textContent = activeService.serviceName;
-  document.getElementById('ciServiceDate').textContent = activeService.serviceDate;
   document.getElementById('ciResults').innerHTML = '';
   document.getElementById('ciConfirm').innerHTML = '';
   document.getElementById('ciSearch').value = '';
+  if (!activeService || !activeService.serviceName) {
+    noActive.style.display = 'block';
+    document.getElementById('ciServiceName').textContent = '';
+    document.getElementById('ciServiceDate').textContent = '';
+    document.getElementById('liveRosterArea').style.display = 'none';
+    renderBirthdayCelebrants();
+    return;
+  }
+  noActive.style.display = 'none';
+  document.getElementById('ciServiceName').textContent = activeService.serviceName;
+  document.getElementById('ciServiceDate').textContent = activeService.serviceDate;
   renderLiveRoster();
+  renderBirthdayCelebrants();
 }
 
+/* ---------------- BIRTHDAY CELEBRANTS ---------------- */
+function dateOnly(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+function fmtBday(m, d) {
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${months[m]} ${d}`;
+}
+// Returns array of {month, day, year(reference)} occurrences of a dob-based birthday
+// that could plausibly fall within [rangeStart, rangeEnd] (checking prev/this/next year versions).
+function birthdayOccurrencesInRange(dobMonth, dobDay, rangeStart, rangeEnd) {
+  const years = new Set([rangeStart.getFullYear(), rangeEnd.getFullYear()]);
+  const hits = [];
+  years.forEach(y => {
+    const occ = new Date(y, dobMonth, dobDay);
+    if (occ >= rangeStart && occ <= rangeEnd) hits.push(occ);
+  });
+  return hits;
+}
+function renderBirthdayCelebrants() {
+  const wrap = document.getElementById('bdayWrap');
+  if (!wrap) return;
+  const withDob = members.filter(m => m.dob);
+  const today = dateOnly(new Date());
+  // Week runs Saturday through Friday
+  const dow = today.getDay(); // Sunday=0 ... Saturday=6
+  const offsetToSaturday = (dow + 1) % 7;
+  const thisWeekStart = new Date(today); thisWeekStart.setDate(today.getDate() - offsetToSaturday);
+  const thisWeekEnd = new Date(thisWeekStart); thisWeekEnd.setDate(thisWeekStart.getDate() + 6);
+  const lastWeekStart = new Date(thisWeekStart); lastWeekStart.setDate(thisWeekStart.getDate() - 7);
+  const lastWeekEnd = new Date(thisWeekEnd); lastWeekEnd.setDate(thisWeekEnd.getDate() - 7);
+  const nextWeekStart = new Date(thisWeekStart); nextWeekStart.setDate(thisWeekStart.getDate() + 7);
+  const nextWeekEnd = new Date(thisWeekEnd); nextWeekEnd.setDate(thisWeekEnd.getDate() + 7);
+
+  function collect(rangeStart, rangeEnd) {
+    const list = [];
+    withDob.forEach(m => {
+      const d = new Date(m.dob + 'T00:00:00');
+      if (isNaN(d.getTime())) return;
+      const occs = birthdayOccurrencesInRange(d.getMonth(), d.getDate(), rangeStart, rangeEnd);
+      occs.forEach(occ => list.push({ member: m, month: d.getMonth(), day: d.getDate(), isToday: occ.getTime() === today.getTime() }));
+    });
+    list.sort((a,b) => (a.month - b.month) || (a.day - b.day));
+    return list;
+  }
+
+  const lastWeekList = collect(lastWeekStart, lastWeekEnd);
+  const thisWeekList = collect(thisWeekStart, thisWeekEnd);
+  const nextWeekList = collect(nextWeekStart, nextWeekEnd);
+  const todaysCelebrants = thisWeekList.filter(x => x.isToday);
+
+  if (lastWeekList.length === 0 && thisWeekList.length === 0 && nextWeekList.length === 0) {
+    wrap.innerHTML = '';
+    return;
+  }
+
+  let html = '';
+  html += `<div class="bday-title">🎂 Birthday Celebrants</div>`;
+  if (todaysCelebrants.length > 0) {
+    html += `<div class="bday-today">🎂 Happy Birthday today: ${todaysCelebrants.map(x => escapeHtml(x.member.name)).join(', ')}!</div>`;
+  }
+  function colHtml(title, list) {
+    if (list.length === 0) return `<div class="bday-col"><h4>${title}</h4><div class="empty" style="padding:4px 0;">None</div></div>`;
+    return `<div class="bday-col"><h4>${title}</h4>${list.map(x => `
+      <div class="bday-item${x.isToday ? ' is-today' : ''}">${escapeHtml(x.member.name)} <span class="bd-date">(${fmtBday(x.month, x.day)}${x.isToday ? ' · Today' : ''})</span></div>
+    `).join('')}</div>`;
+  }
+  html += `<div class="bday-cols">
+    ${colHtml('Last Week', lastWeekList)}
+    ${colHtml('This Week', thisWeekList)}
+    ${colHtml('Next Week', nextWeekList)}
+  </div>`;
+  wrap.innerHTML = html;
+}
+
+function groupByKawan(items, kawanKey) {
+  const groups = {};
+  items.forEach(it => {
+    const k = it[kawanKey] || 'Unassigned';
+    (groups[k] = groups[k] || []).push(it);
+  });
+  return groups;
+}
 function renderLiveRoster() {
   const area = document.getElementById('liveRosterArea');
   if (!activeService || !activeService.serviceName) { area.style.display = 'none'; return; }
@@ -406,12 +1037,64 @@ function renderLiveRoster() {
   const presentRecords = attendance.filter(a => a.serviceName === activeService.serviceName && a.serviceDate === activeService.serviceDate);
   const presentIds = new Set(presentRecords.map(a => a.memberId));
   const absentMembers = members.filter(m => !presentIds.has(m.id));
-  document.getElementById('livePresentBody').innerHTML = presentRecords.map(a => `<tr><td>${escapeHtml(a.memberName)}</td><td>${escapeHtml(a.kawan)}</td><td>${escapeHtml(a.timeIn || '—')}</td></tr>`).join('');
-  document.getElementById('liveAbsentBody').innerHTML = absentMembers.map(m => `<tr><td>${escapeHtml(m.name)}</td><td>${escapeHtml(m.kawan || 'Unassigned')}</td></tr>`).join('');
+
+  const canChangeAttendance = isAdminLoggedIn();
+  const presentGroups = groupByKawan(presentRecords, 'kawan');
+  const presentKawanNames = Object.keys(presentGroups).sort();
+  document.getElementById('livePresentGroups').innerHTML = presentKawanNames.map(k => `
+    <div class="roster-kawan">
+      <h4>${escapeHtml(k)} <span class="count-pill">${presentGroups[k].length}</span></h4>
+      <table><thead><tr><th>Name</th><th>Time</th><th></th></tr></thead><tbody>
+        ${presentGroups[k].map(a => `<tr><td>${escapeHtml(a.memberName)}</td><td>${escapeHtml(a.timeIn || '—')}</td><td style="text-align:right;">${canChangeAttendance ? `<button class="btn-edit toggle-attendance-btn" data-member="${a.memberId}" data-make="absent">Mark Absent</button>` : ''}</td></tr>`).join('')}
+      </tbody></table>
+    </div>
+  `).join('');
+
+  const absentGroups = groupByKawan(absentMembers, 'kawan');
+  const absentKawanNames = Object.keys(absentGroups).sort();
+  document.getElementById('liveAbsentGroups').innerHTML = absentKawanNames.map(k => `
+    <div class="roster-kawan">
+      <h4>${escapeHtml(k)} <span class="count-pill">${absentGroups[k].length}</span></h4>
+      <table><thead><tr><th>Name</th><th></th></tr></thead><tbody>
+        ${absentGroups[k].map(m => `<tr><td>${escapeHtml(m.name)}</td><td style="text-align:right;">${canChangeAttendance ? `<button class="btn-present toggle-attendance-btn" data-member="${m.id}" data-make="present">Mark Present</button>` : ''}</td></tr>`).join('')}
+      </tbody></table>
+    </div>
+  `).join('');
+
+  document.querySelectorAll('.toggle-attendance-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (!isAdminLoggedIn()) return;
+      await toggleAttendance(btn.dataset.member, btn.dataset.make === 'present');
+    });
+  });
+
   document.getElementById('livePresentEmpty').style.display = presentRecords.length ? 'none' : 'block';
   document.getElementById('liveAbsentEmpty').style.display = absentMembers.length ? 'none' : 'block';
   document.getElementById('livePresentCount').textContent = presentRecords.length + ' present';
   document.getElementById('liveAbsentCount').textContent = absentMembers.length + ' absent';
+}
+
+async function toggleAttendance(memberId, makePresent) {
+  if (!isAdminLoggedIn()) return;
+  if (!activeService || !activeService.serviceName) return;
+  const member = members.find(m => m.id === memberId);
+  if (!member) return;
+  if (makePresent) {
+    const already = attendance.some(a => a.memberId === memberId && a.serviceName === activeService.serviceName && a.serviceDate === activeService.serviceDate);
+    if (!already) {
+      const timeIn = new Date().toTimeString().slice(0, 5);
+      attendance.push({
+        id: uid('a'), memberId, memberName: member.name, kawan: member.kawan || 'Unassigned',
+        serviceName: activeService.serviceName, serviceDate: activeService.serviceDate, timeIn
+      });
+    }
+  } else {
+    attendance = attendance.filter(a => !(a.memberId === memberId && a.serviceName === activeService.serviceName && a.serviceDate === activeService.serviceDate));
+  }
+  statusLine.textContent = 'Saving...';
+  await saveAttendanceData(yearOf(activeService.serviceDate));
+  renderLiveRoster();
+  trySync();
 }
 
 function findMemberMatches(query) {
@@ -436,22 +1119,44 @@ function renderCheckinResults() {
     resultsEl.innerHTML = '<div class="empty" style="text-align:center;">No matching member found.</div>';
     return;
   }
+  const hasSession = !!(activeService && activeService.serviceName);
+  const canChangeAttendance = hasSession && isAdminLoggedIn();
   resultsEl.innerHTML = results.map(m => {
     const existing = isAlreadyPresent(m.id);
+    let dobText = '';
+    if (m.dob) {
+      const d = new Date(m.dob + 'T00:00:00');
+      if (!isNaN(d.getTime())) dobText = fmtBday(d.getMonth(), d.getDate());
+    }
+    const detailParts = [
+      `Kawan: ${escapeHtml(m.kawan || 'Unassigned')}`,
+      `ID ${escapeHtml(m.code)}`,
+      `Mobile: ${escapeHtml(m.contact || '—')}`,
+      `Birthday: ${dobText ? escapeHtml(dobText) : '—'}`
+    ];
+    let buttonHtml;
+    if (!hasSession) {
+      buttonHtml = `<button class="btn-present" disabled>No active session</button>`;
+    } else if (existing) {
+      buttonHtml = `<button class="btn-present" disabled>✓ In</button>`;
+    } else if (!canChangeAttendance) {
+      buttonHtml = `<button class="btn-present" disabled title="Admin login required">🔒 Admin Only</button>`;
+    } else {
+      buttonHtml = `<button class="btn-present" data-member="${m.id}">✅ Present</button>`;
+    }
     return `
     <div class="match-card">
       <div class="info">
         <div class="name">${escapeHtml(m.name)}</div>
-        <div class="kawan">${escapeHtml(m.kawan || 'Unassigned')} · ID ${escapeHtml(m.code)}</div>
+        <div class="kawan">${detailParts.join(' · ')}</div>
       </div>
-      <button class="btn-present" data-member="${m.id}" ${existing ? 'disabled' : ''}>
-        ${existing ? '✓ In' : "✅ Present"}
-      </button>
+      ${buttonHtml}
     </div>`;
   }).join('');
 
   resultsEl.querySelectorAll('.btn-present:not([disabled])').forEach(btn => {
     btn.addEventListener('click', async () => {
+      if (!isAdminLoggedIn()) { renderCheckinResults(); return; }
       const memberId = btn.dataset.member;
       const member = members.find(m => m.id === memberId);
       if (!member || !activeService) return;
@@ -465,8 +1170,9 @@ function renderCheckinResults() {
       document.getElementById('ciSearch').value = '';
       document.getElementById('ciResults').innerHTML = '';
       statusLine.textContent = 'Saving...';
-      await saveAttendanceData();
+      await saveAttendanceData(yearOf(activeService.serviceDate));
       renderLiveRoster();
+      trySync();
       setTimeout(() => { document.getElementById('ciConfirm').innerHTML = ''; }, 3000);
     });
   });
@@ -510,6 +1216,8 @@ document.getElementById('startSessionBtn').addEventListener('click', async () =>
   const serviceDate = document.getElementById('sDate').value;
   if (!serviceName || !serviceDate) { alert('Choose service name and date.'); return; }
   activeService = { serviceName, serviceDate };
+  statusLine.textContent = 'Loading...';
+  await ensureYearLoaded(yearOf(serviceDate));
   renderActiveServiceStatus();
   renderCheckin();
   statusLine.textContent = 'Saving...';
@@ -523,56 +1231,362 @@ document.getElementById('endSessionBtn').addEventListener('click', async () => {
   await saveActiveService();
 });
 
+let memberSearchQuery = '';
 function kawanGroups() {
+  const q = memberSearchQuery.trim().toLowerCase();
+  const filtered = q
+    ? members.filter(m => [m.name, m.kawan, m.contact, m.mobile2, m.code, m.nickname, m.area].some(v => (v || '').toLowerCase().includes(q)))
+    : members;
   const groups = {};
-  members.forEach(m => { const k = m.kawan || 'Unassigned'; (groups[k] = groups[k] || []).push(m); });
+  filtered.forEach(m => { const k = m.kawan || 'Unassigned'; (groups[k] = groups[k] || []).push(m); });
   return groups;
 }
+document.getElementById('memberSearchInput').addEventListener('input', (e) => {
+  memberSearchQuery = e.target.value;
+  renderMembers();
+});
 function renderMembers() {
   const groups = kawanGroups();
   const container = document.getElementById('membersList');
   const kawanNames = Object.keys(groups).sort();
-  if (kawanNames.length === 0) { container.innerHTML = '<div class="empty">No members yet.</div>'; return; }
+  if (kawanNames.length === 0) { container.innerHTML = `<div class="empty">${memberSearchQuery.trim() ? 'No members match your search.' : 'No members yet.'}</div>`; return; }
   container.innerHTML = kawanNames.map(k => `
     <div class="card kawan-group">
       <h3>${escapeHtml(k)} <span class="count-pill">${groups[k].length}</span></h3>
       <table><tbody>
-        ${groups[k].map(m => `
+        ${groups[k].map(m => {
+          const line1Parts = [`ID ${escapeHtml(m.code)}`];
+          if (m.nickname) line1Parts.push(`"${escapeHtml(m.nickname)}"`);
+          if (m.contact) line1Parts.push(escapeHtml(m.contact));
+          if (m.dob) line1Parts.push(escapeHtml(m.dob));
+          if (m.gender) line1Parts.push(escapeHtml(m.gender));
+          const line2Parts = [];
+          if (m.occupation || m.company) line2Parts.push(escapeHtml([m.occupation, m.company].filter(Boolean).join(' at ')));
+          if (m.address) line2Parts.push(escapeHtml(m.address));
+          if (m.designation) line2Parts.push(escapeHtml(m.designation));
+          if (m.status) line2Parts.push(escapeHtml(m.status));
+          return `
           <tr>
-            <td>${escapeHtml(m.name)}</td>
-            <td style="color:var(--muted); font-size:11px;">ID ${escapeHtml(m.code)}</td>
-            <td style="text-align:right;"><button class="btn-danger" data-id="${m.id}">Del</button></td>
+            <td>
+              <div style="font-weight:700;">${escapeHtml(m.name)}</div>
+              <div style="color:var(--muted); font-size:11px;">${line1Parts.join(' · ')}</div>
+              ${line2Parts.length ? `<div style="color:var(--muted); font-size:11px;">${line2Parts.join(' · ')}</div>` : ''}
+            </td>
+            <td style="text-align:right; white-space:nowrap;">
+              <div class="member-row-actions">
+                <button class="btn-edit" data-id="${m.id}">Edit</button>
+                <button class="btn-danger" data-id="${m.id}">Del</button>
+              </div>
+            </td>
           </tr>
-        `).join('')}
+        `;
+        }).join('')}
       </tbody></table>
     </div>
   `).join('');
   container.querySelectorAll('.btn-danger').forEach(b => {
     b.addEventListener('click', async () => {
+      if (!verifyAdminPasswordPrompt()) return;
       if (!confirm('Remove member?')) return;
       members = members.filter(m => m.id !== b.dataset.id);
-      renderMembers(); renderKawanDatalist(); renderLiveRoster();
+      if (editingMemberId === b.dataset.id) cancelMemberEdit();
+      renderMembers(); renderKawanDatalist(); renderLiveRoster(); renderBirthdayCelebrants();
       statusLine.textContent = 'Saving...';
       await saveMembers();
+      trySync();
     });
+  });
+  container.querySelectorAll('.btn-edit').forEach(b => {
+    b.addEventListener('click', () => startMemberEdit(b.dataset.id));
   });
 }
 function renderKawanDatalist() {
-  const names = [...new Set(members.map(m => m.kawan).filter(Boolean))].sort();
+  const fromMembers = members.map(m => m.kawan).filter(Boolean);
+  const names = [...new Set([...fromMembers, ...kawans])].sort();
   document.getElementById('kawanList').innerHTML = names.map(n => `<option value="${escapeHtml(n)}">`).join('');
 }
+const BASIC_MEMBER_FIELD_IDS = ['mName','mKawan','mContact','mDob','mOccupation','mCompany','mAddress'];
+const MORE_MEMBER_FIELD_IDS = ['mNickname','mMiddleName','mArea','mMobile2','mEmail','mFacebook','mAddressPH','mDateBaptised','mConvertedBy','mGender','mDesignation','mStatus','mRemarks','mCode'];
+function clearMemberForm() {
+  [...BASIC_MEMBER_FIELD_IDS, ...MORE_MEMBER_FIELD_IDS].forEach(id => document.getElementById(id).value = '');
+}
+document.getElementById('toggleMoreFieldsBtn').addEventListener('click', () => {
+  const el = document.getElementById('moreMemberFields');
+  const btn = document.getElementById('toggleMoreFieldsBtn');
+  const showing = el.style.display !== 'none';
+  el.style.display = showing ? 'none' : 'block';
+  btn.textContent = showing ? '+ More Fields' : '− Hide More Fields';
+});
+function startMemberEdit(id) {
+  const m = members.find(x => x.id === id);
+  if (!m) return;
+  editingMemberId = id;
+  document.getElementById('mName').value = m.name || '';
+  document.getElementById('mKawan').value = m.kawan || '';
+  document.getElementById('mContact').value = m.contact || '';
+  document.getElementById('mDob').value = m.dob || '';
+  document.getElementById('mOccupation').value = m.occupation || '';
+  document.getElementById('mCompany').value = m.company || '';
+  document.getElementById('mAddress').value = m.address || '';
+  document.getElementById('mNickname').value = m.nickname || '';
+  document.getElementById('mMiddleName').value = m.middleName || '';
+  document.getElementById('mArea').value = m.area || '';
+  document.getElementById('mMobile2').value = m.mobile2 || '';
+  document.getElementById('mEmail').value = m.email || '';
+  document.getElementById('mFacebook').value = m.facebook || '';
+  document.getElementById('mAddressPH').value = m.addressPhilippines || '';
+  document.getElementById('mDateBaptised').value = m.dateBaptised || '';
+  document.getElementById('mConvertedBy').value = m.convertedBy || '';
+  document.getElementById('mGender').value = m.gender || '';
+  document.getElementById('mDesignation').value = m.designation || '';
+  document.getElementById('mStatus').value = m.status || '';
+  document.getElementById('mRemarks').value = m.remarks || '';
+  document.getElementById('mCode').value = m.code || '';
+  document.getElementById('memberFormTitle').textContent = 'Edit Member';
+  document.getElementById('addMemberBtn').textContent = 'Save Changes';
+  document.getElementById('cancelEditMemberBtn').style.display = 'inline-block';
+  document.getElementById('mName').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+function cancelMemberEdit() {
+  editingMemberId = null;
+  clearMemberForm();
+  document.getElementById('memberFormTitle').textContent = 'Add Member';
+  document.getElementById('addMemberBtn').textContent = '+ Add Member';
+  document.getElementById('cancelEditMemberBtn').style.display = 'none';
+}
+document.getElementById('cancelEditMemberBtn').addEventListener('click', cancelMemberEdit);
 document.getElementById('addMemberBtn').addEventListener('click', async () => {
   const name = document.getElementById('mName').value.trim();
   const kawan = document.getElementById('mKawan').value.trim();
+  const contact = document.getElementById('mContact').value.trim();
+  const dob = document.getElementById('mDob').value;
+  const occupation = document.getElementById('mOccupation').value.trim();
+  const company = document.getElementById('mCompany').value.trim();
+  const address = document.getElementById('mAddress').value.trim();
+  const nickname = document.getElementById('mNickname').value.trim();
+  const middleName = document.getElementById('mMiddleName').value.trim();
+  const area = document.getElementById('mArea').value.trim();
+  const mobile2 = document.getElementById('mMobile2').value.trim();
+  const email = document.getElementById('mEmail').value.trim();
+  const facebook = document.getElementById('mFacebook').value.trim();
+  const addressPhilippines = document.getElementById('mAddressPH').value.trim();
+  const dateBaptised = document.getElementById('mDateBaptised').value.trim();
+  const convertedBy = document.getElementById('mConvertedBy').value.trim();
+  const gender = document.getElementById('mGender').value;
+  const designation = document.getElementById('mDesignation').value.trim();
+  const status = document.getElementById('mStatus').value;
+  const remarks = document.getElementById('mRemarks').value.trim();
+  const codeOverride = document.getElementById('mCode').value.trim();
   if (!name) return;
-  let code;
-  do { code = genCode(); } while (members.some(m => m.code === code));
-  members.push({ id: uid('m'), name, kawan, code });
-  document.getElementById('mName').value = '';
-  document.getElementById('mKawan').value = '';
-  renderMembers(); renderKawanDatalist(); renderLiveRoster();
+
+  const extraFields = {
+    nickname, middleName, area, mobile2, email, facebook,
+    addressPhilippines, dateBaptised, convertedBy, gender, designation, status, remarks
+  };
+
+  if (editingMemberId) {
+    const m = members.find(x => x.id === editingMemberId);
+    if (m) {
+      m.name = name; m.kawan = kawan; m.contact = contact; m.dob = dob;
+      m.occupation = occupation; m.company = company; m.address = address;
+      Object.assign(m, extraFields);
+      if (codeOverride) m.code = codeOverride;
+    }
+    cancelMemberEdit();
+  } else {
+    let code = codeOverride;
+    if (!code) { do { code = genCode(); } while (members.some(m => m.code === code)); }
+    members.push({ id: uid('m'), name, kawan, code, contact, dob, occupation, company, address, ...extraFields });
+    clearMemberForm();
+  }
+  renderMembers(); renderKawanDatalist(); renderLiveRoster(); renderBirthdayCelebrants();
   statusLine.textContent = 'Saving...';
   await saveMembers();
+  trySync();
+});
+
+/* ---------------- MEMBER FILE EXPORT / IMPORT ---------------- */
+document.getElementById('exportMembersCsvBtn').addEventListener('click', () => {
+  const rows = memberExportRows();
+  const csv = rows.map(r => r.map(toCsvValue).join(',')).join('\n');
+  downloadFile(`members-export-${todayStr()}.csv`, csv, 'text/csv');
+});
+document.getElementById('exportMembersJsonBtn').addEventListener('click', () => {
+  downloadFile(`members-export-${todayStr()}.json`, JSON.stringify(members, null, 2), 'application/json');
+});
+document.getElementById('importMembersFileInput').addEventListener('change', async (e) => {
+  const fileInput = e.target;
+  if (!verifyAdminPasswordPrompt()) { fileInput.value = ''; return; }
+  const file = fileInput.files[0];
+  if (!file) return;
+  let records = [];
+  try {
+    const text = await file.text();
+    if (file.name.toLowerCase().endsWith('.json')) {
+      records = JSON.parse(text);
+      if (!Array.isArray(records)) throw new Error('JSON file must contain an array of members.');
+    } else {
+      records = csvToObjects(text).map(mapCsvRowToMember);
+    }
+  } catch (err) {
+    alert('Could not read that file: ' + err.message);
+    fileInput.value = '';
+    return;
+  }
+  records = records.filter(r => (r.name || '').trim());
+  if (records.length === 0) { alert('No valid member rows found in that file.'); fileInput.value = ''; return; }
+
+  const existingCodes = new Set(members.map(m => (m.code || '').toUpperCase()));
+  const existingNames = new Set(members.map(m => (m.name || '').toLowerCase().trim()));
+  const toAdd = records.filter(r => {
+    const codeKey = (r.code || '').toUpperCase();
+    const nameKey = (r.name || '').toLowerCase().trim();
+    if (codeKey && existingCodes.has(codeKey)) return false;
+    if (!codeKey && nameKey && existingNames.has(nameKey)) return false;
+    return true;
+  });
+  const skipped = records.length - toAdd.length;
+  if (toAdd.length === 0) { alert(`Nothing to import — all ${records.length} member(s) already present.`); fileInput.value = ''; return; }
+  if (!confirm(`Import ${toAdd.length} member(s) from this file? (${skipped} already present will be skipped.)`)) { fileInput.value = ''; return; }
+
+  toAdd.forEach(r => {
+    let code = (r.code || '').trim();
+    if (!code || existingCodes.has(code.toUpperCase())) {
+      do { code = genCode(); } while (members.some(m => m.code === code) || existingCodes.has(code));
+    }
+    existingCodes.add(code.toUpperCase());
+    members.push({
+      id: uid('m'), code, name: r.name || '', kawan: r.kawan || '',
+      contact: r.contact || '', dob: r.dob || '',
+      occupation: r.occupation || '', company: r.company || '', address: r.address || '',
+      nickname: r.nickname || '', middleName: r.middleName || '', area: r.area || '',
+      mobile2: r.mobile2 || '', email: r.email || '', facebook: r.facebook || '',
+      addressPhilippines: r.addressPhilippines || '', dateBaptised: r.dateBaptised || '',
+      convertedBy: r.convertedBy || '', gender: r.gender || '', designation: r.designation || '',
+      status: r.status || '', remarks: r.remarks || ''
+    });
+    if (r.kawan && !kawans.includes(r.kawan)) kawans.push(r.kawan);
+  });
+
+  renderMembers(); renderKawanDatalist(); renderKawanMgmt(); renderLiveRoster(); renderBirthdayCelebrants();
+  statusLine.textContent = 'Saving...';
+  await saveMembers();
+  await saveKawans();
+  trySync();
+  alert(`Imported ${toAdd.length} member(s). ${skipped} already present were skipped.`);
+  fileInput.value = '';
+});
+
+/* ---------------- IMPORT PROVIDED MEMBER LIST ---------------- */
+document.getElementById('importProvidedMembersBtn').addEventListener('click', async () => {
+  if (!verifyAdminPasswordPrompt()) return;
+  const total = IMPORTED_MEMBERS.length;
+  const existingCodes = new Set(members.map(m => (m.code || '').toUpperCase()));
+  const existingNames = new Set(members.map(m => (m.name || '').toLowerCase().trim()));
+  const toAdd = IMPORTED_MEMBERS.filter(r => {
+    const codeKey = (r.code || '').toUpperCase();
+    const nameKey = (r.name || '').toLowerCase().trim();
+    if (codeKey && existingCodes.has(codeKey)) return false;
+    if (!codeKey && nameKey && existingNames.has(nameKey)) return false;
+    return true;
+  });
+  const skipped = total - toAdd.length;
+  if (toAdd.length === 0) {
+    document.getElementById('importStatusLine').textContent = `Nothing to import — all ${total} members already present.`;
+    return;
+  }
+  if (!confirm(`Import ${toAdd.length} member(s)? (${skipped} already present will be skipped.)`)) return;
+
+  toAdd.forEach(r => {
+    let code = r.code;
+    if (!code || existingCodes.has(code.toUpperCase())) {
+      do { code = genCode(); } while (members.some(m => m.code === code) || existingCodes.has(code));
+    }
+    existingCodes.add(code.toUpperCase());
+    members.push({
+      id: uid('m'), code, name: r.name, kawan: r.kawan || '',
+      contact: r.contact || '', dob: r.dob || '',
+      occupation: r.occupation || '', company: r.company || '', address: r.address || '',
+      nickname: r.nickname || '', middleName: r.middleName || '', area: r.area || '',
+      mobile2: r.mobile2 || '', email: r.email || '', facebook: r.facebook || '',
+      addressPhilippines: r.addressPhilippines || '', dateBaptised: r.dateBaptised || '',
+      convertedBy: r.convertedBy || '', gender: r.gender || '', designation: r.designation || '',
+      status: r.status || '', remarks: r.remarks || ''
+    });
+    if (r.kawan && !kawans.includes(r.kawan)) kawans.push(r.kawan);
+  });
+
+  renderMembers(); renderKawanDatalist(); renderKawanMgmt(); renderLiveRoster(); renderBirthdayCelebrants();
+  document.getElementById('importStatusLine').textContent = `Imported ${toAdd.length} member(s). ${skipped} already present were skipped.`;
+  statusLine.textContent = 'Saving...';
+  await saveMembers();
+  await saveKawans();
+  trySync();
+});
+
+/* ---------------- KAWAN MANAGEMENT ---------------- */
+function allKawanNames() {
+  const fromMembers = members.map(m => m.kawan).filter(Boolean);
+  return [...new Set([...fromMembers, ...kawans])].sort();
+}
+function renderKawanMgmt() {
+  const container = document.getElementById('kawanMgmtList');
+  if (!container) return;
+  const names = allKawanNames();
+  if (names.length === 0) { container.innerHTML = '<div class="empty">No kawan groups yet.</div>'; return; }
+  container.innerHTML = names.map(k => {
+    const count = members.filter(m => (m.kawan || '') === k).length;
+    return `
+    <div class="kawan-mgmt-row">
+      <div class="kmr-name">${escapeHtml(k)} <span class="count-pill">${count} member${count === 1 ? '' : 's'}</span></div>
+      <button class="btn-edit" data-kawan="${escapeHtml(k)}" data-action="rename">Rename</button>
+      <button class="btn-danger" data-kawan="${escapeHtml(k)}" data-action="delete">Delete</button>
+    </div>`;
+  }).join('');
+  container.querySelectorAll('[data-action="rename"]').forEach(b => {
+    b.addEventListener('click', async () => {
+      const oldName = b.dataset.kawan;
+      const newName = (prompt('Rename kawan "' + oldName + '" to:', oldName) || '').trim();
+      if (!newName || newName === oldName) return;
+      members.forEach(m => { if ((m.kawan || '') === oldName) m.kawan = newName; });
+      kawans = kawans.map(k => k === oldName ? newName : k);
+      if (!kawans.includes(newName)) kawans.push(newName);
+      renderMembers(); renderKawanDatalist(); renderKawanMgmt(); renderLiveRoster();
+      statusLine.textContent = 'Saving...';
+      await saveMembers(); await saveKawans();
+      trySync();
+    });
+  });
+  container.querySelectorAll('[data-action="delete"]').forEach(b => {
+    b.addEventListener('click', async () => {
+      if (!verifyAdminPasswordPrompt()) return;
+      const name = b.dataset.kawan;
+      const count = members.filter(m => (m.kawan || '') === name).length;
+      const msg = count > 0
+        ? `Delete kawan "${name}"? ${count} member(s) will become Unassigned (they will not be removed).`
+        : `Delete kawan "${name}"?`;
+      if (!confirm(msg)) return;
+      members.forEach(m => { if ((m.kawan || '') === name) m.kawan = ''; });
+      kawans = kawans.filter(k => k !== name);
+      renderMembers(); renderKawanDatalist(); renderKawanMgmt(); renderLiveRoster();
+      statusLine.textContent = 'Saving...';
+      await saveMembers(); await saveKawans();
+      trySync();
+    });
+  });
+}
+document.getElementById('addKawanBtn').addEventListener('click', async () => {
+  const name = document.getElementById('newKawanName').value.trim();
+  if (!name) return;
+  if (allKawanNames().some(k => k.toLowerCase() === name.toLowerCase())) {
+    alert('That kawan already exists.');
+    return;
+  }
+  kawans.push(name);
+  document.getElementById('newKawanName').value = '';
+  renderKawanMgmt(); renderKawanDatalist();
+  statusLine.textContent = 'Saving...';
+  await saveKawans();
 });
 
 function allSessions() {
@@ -585,10 +1599,9 @@ function allSessions() {
   return Object.values(sessions).sort((a,b) => b.serviceDate.localeCompare(a.serviceDate));
 }
 
-function renderServiceHistory() {
-  const sessions = allSessions();
+function renderServiceHistory(sessions) {
   const container = document.getElementById('serviceHistoryList');
-  if (sessions.length === 0) { container.innerHTML = '<div class="empty">No past services.</div>'; return; }
+  if (sessions.length === 0) { container.innerHTML = '<div class="empty">No services for this year.</div>'; return; }
   container.innerHTML = sessions.map(s => {
     const totalMembers = members.length;
     const presentCount = s.presentIds.size;
@@ -619,27 +1632,93 @@ function renderServiceHistory() {
 }
 
 function renderReportOptions() {
-  const sessions = allSessions();
+  const yearSel = document.getElementById('rYear');
+  const years = [...new Set([...attendanceYearsIndex, currentYearStr()])].sort().reverse();
+  const prevYearVal = yearSel.value;
+  yearSel.innerHTML = years.map(y => `<option value="${y}">${y}</option>`).join('');
+  yearSel.value = years.includes(prevYearVal) ? prevYearVal : currentYearStr();
+  const selectedYear = yearSel.value;
+
+  const sessions = allSessions().filter(s => yearOf(s.serviceDate) === selectedYear);
   const sel = document.getElementById('rService');
   sel.innerHTML = sessions.map(s => `<option value="${escapeHtml(s.serviceName)}||${s.serviceDate}">${escapeHtml(s.serviceName)} (${s.serviceDate})</option>`).join('');
   const kawanNames = [...new Set(members.map(m => m.kawan || 'Unassigned'))].sort();
   document.getElementById('rKawan').innerHTML = '<option value="">All Kawans</option>' + kawanNames.map(k => `<option value="${escapeHtml(k)}">${escapeHtml(k)}</option>`).join('');
-  renderServiceHistory();
+  renderServiceHistory(sessions);
+  document.getElementById('reportYearStatus').textContent = loadedYears.has(selectedYear) ? '' : 'Loading ' + selectedYear + '...';
   if (sel.value) triggerReportFromSelects();
 }
+document.getElementById('rYear').addEventListener('change', async () => {
+  const year = document.getElementById('rYear').value;
+  document.getElementById('reportYearStatus').textContent = 'Loading ' + year + '...';
+  await ensureYearLoaded(year);
+  document.getElementById('reportYearStatus').textContent = '';
+  renderReportOptions();
+});
 
 function runReport(serviceName, serviceDate, kawanFilter) {
   const presentRecords = attendance.filter(a => a.serviceName === serviceName && a.serviceDate === serviceDate && (!kawanFilter || a.kawan === kawanFilter));
   const presentIds = new Set(presentRecords.map(a => a.memberId));
   const relevantMembers = members.filter(m => !kawanFilter || (m.kawan || 'Unassigned') === kawanFilter);
   const absentMembers = relevantMembers.filter(m => !presentIds.has(m.id));
-  document.getElementById('presentBody').innerHTML = presentRecords.map(a => `<tr><td>${escapeHtml(a.memberName)}</td><td>${escapeHtml(a.kawan)}</td><td>${escapeHtml(a.timeIn || '—')}</td></tr>`).join('');
-  document.getElementById('absentBody').innerHTML = absentMembers.map(m => `<tr><td>${escapeHtml(m.name)}</td><td>${escapeHtml(m.kawan || 'Unassigned')}</td></tr>`).join('');
+  lastReport = { serviceName, serviceDate, kawanFilter, presentRecords, absentMembers };
+
+  const presentGroups = groupByKawan(presentRecords, 'kawan');
+  const presentKawanNames = Object.keys(presentGroups).sort();
+  document.getElementById('presentGroups').innerHTML = presentKawanNames.map(k => `
+    <div class="roster-kawan">
+      <h4>${escapeHtml(k)} <span class="count-pill">${presentGroups[k].length}</span></h4>
+      <table><thead><tr><th style="width:32px;">#</th><th>Name</th><th>Time</th></tr></thead><tbody>
+        ${presentGroups[k].map((a, i) => `<tr><td>${i + 1}</td><td>${escapeHtml(a.memberName)}</td><td>${escapeHtml(a.timeIn || '—')}</td></tr>`).join('')}
+      </tbody></table>
+    </div>
+  `).join('');
+
+  const absentGroups = groupByKawan(absentMembers, 'kawan');
+  const absentKawanNames = Object.keys(absentGroups).sort();
+  document.getElementById('absentGroups').innerHTML = absentKawanNames.map(k => `
+    <div class="roster-kawan">
+      <h4>${escapeHtml(k)} <span class="count-pill">${absentGroups[k].length}</span></h4>
+      <table><thead><tr><th style="width:32px;">#</th><th>Name</th></tr></thead><tbody>
+        ${absentGroups[k].map((m, i) => `<tr><td>${i + 1}</td><td>${escapeHtml(m.name)}</td></tr>`).join('')}
+      </tbody></table>
+    </div>
+  `).join('');
+
   document.getElementById('presentEmpty').style.display = presentRecords.length ? 'none' : 'block';
   document.getElementById('absentEmpty').style.display = absentMembers.length ? 'none' : 'block';
   document.getElementById('presentCount').textContent = presentRecords.length + ' present';
   document.getElementById('absentCount').textContent = absentMembers.length + ' absent';
 }
+let lastReport = null;
+function reportExportRows() {
+  if (!lastReport) return null;
+  const rows = [['Status','Kawan','Name','Time In','Service Name','Service Date']];
+  lastReport.presentRecords.forEach(a => rows.push(['Present', a.kawan || 'Unassigned', a.memberName, a.timeIn || '', a.serviceName, a.serviceDate]));
+  lastReport.absentMembers.forEach(m => rows.push(['Absent', m.kawan || 'Unassigned', m.name, '', lastReport.serviceName, lastReport.serviceDate]));
+  return rows;
+}
+document.getElementById('exportReportCsvBtn').addEventListener('click', () => {
+  const rows = reportExportRows();
+  if (!rows) { alert('Run a report first by selecting a service above.'); return; }
+  const csv = rows.map(r => r.map(toCsvValue).join(',')).join('\n');
+  downloadFile(`attendance-report-${lastReport.serviceDate}.csv`, csv, 'text/csv');
+});
+document.getElementById('exportReportTxtBtn').addEventListener('click', () => {
+  const rows = reportExportRows();
+  if (!rows) { alert('Run a report first by selecting a service above.'); return; }
+  const txt = rows.map(r => r.join('\t')).join('\n');
+  downloadFile(`attendance-report-${lastReport.serviceDate}.txt`, txt, 'text/plain');
+});
+document.getElementById('exportYearAttendanceBtn').addEventListener('click', () => {
+  const year = document.getElementById('rYear').value || currentYearStr();
+  const yearRecords = attendance.filter(a => yearOf(a.serviceDate) === year).slice().sort((a, b) => a.serviceDate.localeCompare(b.serviceDate));
+  if (yearRecords.length === 0) { alert('No attendance records loaded for ' + year + '.'); return; }
+  const rows = [['Service Name','Service Date','Member Name','Kawan','Time In']];
+  yearRecords.forEach(a => rows.push([a.serviceName, a.serviceDate, a.memberName, a.kawan, a.timeIn || '']));
+  const csv = rows.map(r => r.map(toCsvValue).join(',')).join('\n');
+  downloadFile(`attendance-${year}-full.csv`, csv, 'text/csv');
+});
 
 function triggerReportFromSelects() {
   const val = document.getElementById('rService').value;
@@ -654,6 +1733,181 @@ function triggerReportFromSelects() {
 document.getElementById('rService').addEventListener('change', triggerReportFromSelects);
 document.getElementById('rKawan').addEventListener('change', triggerReportFromSelects);
 document.getElementById('runReportBtn').addEventListener('click', triggerReportFromSelects);
+
+/* ---------------- LOCAL COMPUTER SYNC ---------------- */
+let syncDirHandle = null;
+
+function idbOpen() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open('attendanceSyncDB', 1);
+    req.onupgradeneeded = () => { req.result.createObjectStore('handles'); };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function idbSet(key, value) {
+  const db = await idbOpen();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('handles', 'readwrite');
+    tx.objectStore('handles').put(value, key);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function idbGet(key) {
+  const db = await idbOpen();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('handles', 'readonly');
+    const req = tx.objectStore('handles').get(key);
+    req.onsuccess = () => resolve(req.result || null);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function syncSupported() { return 'showDirectoryPicker' in window && 'indexedDB' in window; }
+function setSyncStatus(text, cls) {
+  const el = document.getElementById('syncStatusLine');
+  if (!el) return;
+  el.textContent = text;
+  el.className = 'sync-status' + (cls ? ' ' + cls : '');
+}
+
+async function initSyncUI() {
+  if (!syncSupported()) {
+    setSyncStatus('Local sync is not supported in this browser. Try Chrome or Edge.', 'bad');
+    return;
+  }
+  try {
+    const handle = await idbGet('syncDir');
+    if (!handle) { setSyncStatus('No sync folder set.'); return; }
+    syncDirHandle = handle;
+    const perm = await syncDirHandle.queryPermission({ mode: 'readwrite' });
+    if (perm === 'granted') {
+      setSyncStatus(`Connected to folder "${syncDirHandle.name}". Syncing today's data automatically.`, 'ok');
+      trySync();
+    } else {
+      setSyncStatus(`Folder "${syncDirHandle.name}" found but needs permission — click "Choose Sync Folder" to reconnect.`);
+    }
+  } catch (e) {
+    setSyncStatus('Could not read saved sync folder.', 'bad');
+  }
+}
+
+document.getElementById('chooseSyncFolderBtn').addEventListener('click', async () => {
+  if (!syncSupported()) { alert('Local folder sync is not supported in this browser. Try Chrome or Edge on desktop.'); return; }
+  try {
+    const handle = await window.showDirectoryPicker({ mode: 'readwrite' });
+    syncDirHandle = handle;
+    await idbSet('syncDir', handle);
+    const perm = await handle.requestPermission({ mode: 'readwrite' });
+    if (perm === 'granted') {
+      setSyncStatus(`Connected to folder "${handle.name}". Syncing today's data automatically.`, 'ok');
+      await trySync();
+    } else {
+      setSyncStatus('Permission not granted for that folder.', 'bad');
+    }
+  } catch (e) {
+    // user cancelled the picker — no action needed
+  }
+});
+document.getElementById('forgetSyncFolderBtn').addEventListener('click', async () => {
+  syncDirHandle = null;
+  await idbSet('syncDir', null);
+  setSyncStatus('No sync folder set.');
+});
+
+function todayStr() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function toCsvValue(v) {
+  const s = String(v ?? '');
+  return '"' + s.replace(/"/g, '""') + '"';
+}
+function formatDateGenerated(d) {
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  let hours = d.getHours();
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12; if (hours === 0) hours = 12;
+  return `${months[d.getMonth()]} ${d.getDate()},${d.getFullYear()} ${hours}:${minutes} ${ampm}`;
+}
+function buildActiveServiceReportText(serviceName, serviceDate, presentRecords, absentMembers) {
+  const lines = [];
+  lines.push(`${serviceName} "${serviceDate}"`);
+  lines.push(`Date generated ${formatDateGenerated(new Date())}`);
+  lines.push(`Total Attendance is ${presentRecords.length}`);
+  lines.push('PRESENT');
+  const presentGroups = groupByKawan(presentRecords, 'kawan');
+  let presentSeq = 0;
+  Object.keys(presentGroups).sort().forEach(k => {
+    lines.push(k);
+    presentGroups[k].forEach(a => { presentSeq++; lines.push(`${presentSeq}. ${a.memberName}`); });
+  });
+  lines.push('ABSENT');
+  lines.push(`Total is ${absentMembers.length}`);
+  const absentGroups = groupByKawan(absentMembers, 'kawan');
+  let absentSeq = 0;
+  Object.keys(absentGroups).sort().forEach(k => {
+    lines.push(k);
+    absentGroups[k].forEach(m => { absentSeq++; lines.push(`${absentSeq}. ${m.name}`); });
+  });
+  return lines.join('\n');
+}
+
+async function trySync() {
+  if (!syncDirHandle) return;
+  try {
+    const perm = await syncDirHandle.queryPermission({ mode: 'readwrite' });
+    if (perm !== 'granted') {
+      setSyncStatus(`Folder "${syncDirHandle.name}" needs permission — click "Choose Sync Folder" to reconnect.`);
+      return;
+    }
+    const today = todayStr();
+    const todaysAttendance = attendance.filter(a => a.serviceDate === today);
+    const todaysSessions = allSessions().filter(s => s.serviceDate === today);
+    const payload = {
+      date: today,
+      exportedAt: new Date().toISOString(),
+      services: todaysSessions.map(s => ({
+        serviceName: s.serviceName,
+        serviceDate: s.serviceDate,
+        presentCount: s.presentIds.size,
+        absentCount: Math.max(members.length - s.presentIds.size, 0)
+      })),
+      attendance: todaysAttendance
+    };
+
+    const jsonHandle = await syncDirHandle.getFileHandle(`attendance-${today}.json`, { create: true });
+    const jsonWritable = await jsonHandle.createWritable();
+    await jsonWritable.write(JSON.stringify(payload, null, 2));
+    await jsonWritable.close();
+
+    const csvRows = [['Service Name','Service Date','Member Name','Kawan','Time In']];
+    todaysAttendance.forEach(a => csvRows.push([a.serviceName, a.serviceDate, a.memberName, a.kawan, a.timeIn || '']));
+    const csvHandle = await syncDirHandle.getFileHandle(`attendance-${today}.csv`, { create: true });
+    const csvWritable = await csvHandle.createWritable();
+    await csvWritable.write(csvRows.map(r => r.map(toCsvValue).join(',')).join('\n'));
+    await csvWritable.close();
+
+    // Formatted text report for the currently active service, if any
+    if (activeService && activeService.serviceName) {
+      const presentRecordsActive = attendance.filter(a => a.serviceName === activeService.serviceName && a.serviceDate === activeService.serviceDate);
+      const presentIdsActive = new Set(presentRecordsActive.map(a => a.memberId));
+      const absentMembersActive = members.filter(m => !presentIdsActive.has(m.id));
+      const reportText = buildActiveServiceReportText(activeService.serviceName, activeService.serviceDate, presentRecordsActive, absentMembersActive);
+      const safeServiceName = activeService.serviceName.replace(/[^a-z0-9]+/gi, '_');
+      const rosterHandle = await syncDirHandle.getFileHandle(`active-service_${safeServiceName}_${activeService.serviceDate}.txt`, { create: true });
+      const rosterWritable = await rosterHandle.createWritable();
+      await rosterWritable.write(reportText);
+      await rosterWritable.close();
+    }
+
+    setSyncStatus(`Synced to "${syncDirHandle.name}" at ${new Date().toTimeString().slice(0,8)} (${todaysAttendance.length} record(s) today).`, 'ok');
+  } catch (e) {
+    setSyncStatus('Sync error: ' + (e.message || e), 'bad');
+  }
+}
 
 loadAll();
 </script>
