@@ -14,6 +14,7 @@
     --accent: #2f6f4f;
     --accent-soft: #e6efe9;
     --danger: #a6402f;
+    --danger-soft: #f7e5e1;
     --muted: #6b6f68;
     --warn: #b5822f;
     --warn-soft: #fbf1e2;
@@ -218,6 +219,11 @@
   .sync-status { font-size: 12px; color: var(--muted); margin-top: 8px; }
   .sync-status.ok { color: var(--accent); }
   .sync-status.bad { color: var(--danger); }
+  /* Kagalakan payment badges */
+  .pay-yes { background: var(--accent-soft); color: var(--accent); border: 1px solid var(--accent); border-radius: 6px; padding: 3px 9px; font-size: 12px; font-weight: 700; }
+  .pay-no { background: var(--danger-soft); color: var(--danger); border: 1px solid var(--danger); border-radius: 6px; padding: 3px 9px; font-size: 12px; font-weight: 700; }
+  button.pay-yes, button.pay-no { cursor: pointer; }
+  .kg-cell-view { cursor: default; display: inline-block; }
 </style>
 </head>
 <body>
@@ -228,9 +234,11 @@
   </header>
 
   <div class="tabs">
-    <button class="tab-btn active" data-tab="checkin">Check-In</button>
+    <button class="tab-btn active" data-tab="checkin">Attendance</button>
     <button class="tab-btn" data-tab="admin">Admin</button>
     <button class="tab-btn" data-tab="reports">Reports</button>
+    <button class="tab-btn" data-tab="comments">Comments <span class="count-pill" id="commentsTabCount">0</span></button>
+    <button class="tab-btn" data-tab="kagalakan">Kagalakan</button>
   </div>
 
   <!-- CHECK-IN (attendee-facing) -->
@@ -261,6 +269,20 @@
         <div id="liveAbsentGroups"></div>
         <div class="empty" id="liveAbsentEmpty" style="display:none;">Everyone checked in.</div>
       </div>
+    </div>
+    <div class="card" id="inactiveMembersCard" style="display:none; margin-top:12px; opacity:0.7;">
+      <h3 style="margin-top:0;">Inactive Members <span class="count-pill" id="inactiveMembersCount"></span></h3>
+      <div id="inactiveMembersGroups"></div>
+    </div>
+    <div class="card" id="shareReportCard" style="display:none; margin-top:12px;">
+      <h3 style="margin-top:0;">Share Today's Report</h3>
+      <div class="row">
+        <button class="btn-ghost" id="shareWhatsAppBtn" style="width:100%;">Share via WhatsApp</button>
+        <button class="btn-ghost" id="shareMessengerBtn" style="width:100%;">Share via Messenger</button>
+        <button class="btn-ghost" id="shareCopyBtn" style="width:100%;">Copy to Clipboard</button>
+        <button class="btn-ghost" id="shareNativeBtn" style="width:100%;">More Share Options...</button>
+      </div>
+      <p class="sync-status" id="shareStatusLine" style="margin-top:8px;"></p>
     </div>
   </div>
 
@@ -544,6 +566,68 @@
       </div>
     </div>
   </div>
+
+  <!-- COMMENTS -->
+  <div class="panel" id="panel-comments">
+    <div class="card">
+      <h3 style="margin-top:0;">Comments <span class="count-pill" id="commentsListCount"></span></h3>
+      <p class="status" style="margin-top:0;">Comments left under a member's name from the Attendance search. Admins can hide, delete, or leave a reply so the member knows it's been handled.</p>
+      <div id="commentsListArea"></div>
+      <div class="empty" id="commentsEmpty" style="display:none;">No comments yet.</div>
+    </div>
+  </div>
+
+  <!-- KAGALAKAN -->
+  <div class="panel" id="panel-kagalakan">
+    <div class="card" id="kagalakanAdminManage" style="display:none;">
+      <h3 style="margin-top:0;">Manage Contributions (Admin)</h3>
+      <div class="row">
+        <div class="field">
+          <label for="kgNewName">Contribution Name</label>
+          <input type="text" id="kgNewName" placeholder="e.g. Father's Day Contribution">
+        </div>
+        <div class="field">
+          <label for="kgNewCategory">Category</label>
+          <select id="kgNewCategory">
+            <option value="monthly">Monthly</option>
+            <option value="weekly">Weekly</option>
+            <option value="onetime">One-Time</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="kgNewYear">Year</label>
+          <input type="number" id="kgNewYear" placeholder="2026" style="max-width:120px;">
+        </div>
+        <button class="btn-primary" id="kgAddContributionBtn" style="width:100%;">+ Add Contribution</button>
+      </div>
+      <div id="kgContributionMgmtList" style="margin-top:10px;"></div>
+    </div>
+
+    <div class="card" id="kgRemarksInboxCard" style="display:none;">
+      <h3 style="margin-top:0;">Remarks Inbox <span class="count-pill" id="kgRemarksInboxCount"></span></h3>
+      <div id="kgRemarksInboxList"></div>
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <div class="field">
+          <label for="kgSelectContribution">Contribution</label>
+          <select id="kgSelectContribution"></select>
+        </div>
+        <div id="kgWeekMonthField" class="field" style="display:none;">
+          <label for="kgWeekMonth">Month</label>
+          <select id="kgWeekMonth"></select>
+        </div>
+        <div id="kgWeekYearField" class="field" style="display:none;">
+          <label for="kgWeekYear">Year</label>
+          <input type="number" id="kgWeekYear" style="max-width:120px;">
+        </div>
+      </div>
+      <p class="status" id="kgTotalLine" style="margin-top:8px;"></p>
+    </div>
+
+    <div id="kgTableWrap"></div>
+  </div>
 </div>
 
 <script>
@@ -644,6 +728,10 @@ let serviceNames = [];
 let adminAccounts = [];     // [{ username, password, isMaster }] loaded from Firebase
 let editingMemberId = null; // when set, form is in "edit" mode
 let kawans = [];            // explicit list of kawan group names (in addition to any inferred from members)
+let comments = [];          // [{id, memberId, memberName, text, hidden, remark, createdAt, remarkAt}]
+let kagalakanContributions = []; // [{id, name, category:'monthly'|'weekly'|'onetime', year}]
+let kagalakanEntries = {};       // { "contribId|memberId|period": {amount, paid} }
+let kagalakanRemarks = [];       // [{id, contributionId, memberId, memberName, text, status:'pending'|'resolved', createdAt, resolvedAt}]
 const DEFAULT_ADMIN_USERNAME = 'admin';
 const DEFAULT_ADMIN_PASSWORD = 'admin123';
 
@@ -736,6 +824,10 @@ async function loadAll() {
     await loadOrMigrateAdminAccounts();
     const kw = await fbGetArr('kawans');
     kawans = kw || [];
+    comments = await fbGetArr('comments');
+    kagalakanContributions = await fbGetArr('kagalakanContributions');
+    kagalakanEntries = (await fbGetObj('kagalakanEntries')) || {};
+    kagalakanRemarks = await fbGetArr('kagalakanRemarks');
 
     await migrateOldAttendanceIfNeeded();
     attendance = [];
@@ -752,6 +844,8 @@ async function loadAll() {
   checkAdminSession();
   renderKawanMgmt();
   initSyncUI();
+  renderCommentsTabBadge();
+  renderKagalakanContributionOptions();
 }
 
 async function loadOrMigrateAdminAccounts() {
@@ -770,6 +864,26 @@ async function loadOrMigrateAdminAccounts() {
 async function saveKawans() {
   if (configMissing()) return;
   try { await fbPutArr('kawans', kawans); statusLine.textContent = 'Synced'; }
+  catch (e) { statusLine.textContent = 'Save error.'; }
+}
+async function saveComments() {
+  if (configMissing()) return;
+  try { await fbPutArr('comments', comments); statusLine.textContent = 'Synced'; }
+  catch (e) { statusLine.textContent = 'Save error.'; }
+}
+async function saveKagalakanContributions() {
+  if (configMissing()) return;
+  try { await fbPutArr('kagalakanContributions', kagalakanContributions); statusLine.textContent = 'Synced'; }
+  catch (e) { statusLine.textContent = 'Save error.'; }
+}
+async function saveKagalakanEntries() {
+  if (configMissing()) return;
+  try { await fbPutObj('kagalakanEntries', kagalakanEntries); statusLine.textContent = 'Synced'; }
+  catch (e) { statusLine.textContent = 'Save error.'; }
+}
+async function saveKagalakanRemarks() {
+  if (configMissing()) return;
+  try { await fbPutArr('kagalakanRemarks', kagalakanRemarks); statusLine.textContent = 'Synced'; }
   catch (e) { statusLine.textContent = 'Save error.'; }
 }
 async function saveAdminAccounts() {
@@ -817,6 +931,8 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     if (btn.dataset.tab === 'reports') renderReportOptions();
     if (btn.dataset.tab === 'checkin') renderCheckin();
     if (btn.dataset.tab === 'admin') checkAdminSession();
+    if (btn.dataset.tab === 'comments') renderCommentsList();
+    if (btn.dataset.tab === 'kagalakan') { renderKagalakanAdminUI(); renderKagalakanContributionOptions(); }
   });
 });
 
@@ -966,6 +1082,12 @@ function birthdayOccurrencesInRange(dobMonth, dobDay, rangeStart, rangeEnd) {
   });
   return hits;
 }
+function honorificName(m) {
+  const g = (m.gender || '').toLowerCase();
+  if (g === 'male') return `Bro. ${m.name}`;
+  if (g === 'female') return `Sis. ${m.name}`;
+  return m.name;
+}
 function renderBirthdayCelebrants() {
   const wrap = document.getElementById('bdayWrap');
   if (!wrap) return;
@@ -1006,12 +1128,12 @@ function renderBirthdayCelebrants() {
   let html = '';
   html += `<div class="bday-title">🎂 Birthday Celebrants</div>`;
   if (todaysCelebrants.length > 0) {
-    html += `<div class="bday-today">🎂 Happy Birthday today: ${todaysCelebrants.map(x => escapeHtml(x.member.name)).join(', ')}!</div>`;
+    html += `<div class="bday-today">🎂 Happy Birthday today: ${todaysCelebrants.map(x => escapeHtml(honorificName(x.member))).join(', ')}!</div>`;
   }
   function colHtml(title, list) {
     if (list.length === 0) return `<div class="bday-col"><h4>${title}</h4><div class="empty" style="padding:4px 0;">None</div></div>`;
     return `<div class="bday-col"><h4>${title}</h4>${list.map(x => `
-      <div class="bday-item${x.isToday ? ' is-today' : ''}">${escapeHtml(x.member.name)} <span class="bd-date">(${fmtBday(x.month, x.day)}${x.isToday ? ' · Today' : ''})</span></div>
+      <div class="bday-item${x.isToday ? ' is-today' : ''}">${escapeHtml(honorificName(x.member))} <span class="bd-date">(${fmtBday(x.month, x.day)}${x.isToday ? ' · Today' : ''})</span></div>
     `).join('')}</div>`;
   }
   html += `<div class="bday-cols">
@@ -1032,11 +1154,21 @@ function groupByKawan(items, kawanKey) {
 }
 function renderLiveRoster() {
   const area = document.getElementById('liveRosterArea');
-  if (!activeService || !activeService.serviceName) { area.style.display = 'none'; return; }
+  const inactiveCard = document.getElementById('inactiveMembersCard');
+  const shareCard = document.getElementById('shareReportCard');
+  if (!activeService || !activeService.serviceName) {
+    area.style.display = 'none';
+    inactiveCard.style.display = 'none';
+    shareCard.style.display = 'none';
+    return;
+  }
   area.style.display = 'grid';
+  shareCard.style.display = 'block';
   const presentRecords = attendance.filter(a => a.serviceName === activeService.serviceName && a.serviceDate === activeService.serviceDate);
   const presentIds = new Set(presentRecords.map(a => a.memberId));
-  const absentMembers = members.filter(m => !presentIds.has(m.id));
+  const isInactiveMember = m => (m.status || '').toLowerCase() === 'inactive';
+  const absentMembers = members.filter(m => !presentIds.has(m.id) && !isInactiveMember(m));
+  const inactiveAbsentMembers = members.filter(m => !presentIds.has(m.id) && isInactiveMember(m));
 
   const canChangeAttendance = isAdminLoggedIn();
   const presentGroups = groupByKawan(presentRecords, 'kawan');
@@ -1060,6 +1192,23 @@ function renderLiveRoster() {
       </tbody></table>
     </div>
   `).join('');
+
+  if (inactiveAbsentMembers.length > 0) {
+    inactiveCard.style.display = 'block';
+    const inactiveGroups = groupByKawan(inactiveAbsentMembers, 'kawan');
+    const inactiveKawanNames = Object.keys(inactiveGroups).sort();
+    document.getElementById('inactiveMembersGroups').innerHTML = inactiveKawanNames.map(k => `
+      <div class="roster-kawan">
+        <h4>${escapeHtml(k)} <span class="count-pill">${inactiveGroups[k].length}</span></h4>
+        <table><thead><tr><th>Name</th></tr></thead><tbody>
+          ${inactiveGroups[k].map(m => `<tr><td>${escapeHtml(m.name)}</td></tr>`).join('')}
+        </tbody></table>
+      </div>
+    `).join('');
+    document.getElementById('inactiveMembersCount').textContent = inactiveAbsentMembers.length + ' inactive';
+  } else {
+    inactiveCard.style.display = 'none';
+  }
 
   document.querySelectorAll('.toggle-attendance-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
@@ -1097,12 +1246,112 @@ async function toggleAttendance(memberId, makePresent) {
   trySync();
 }
 
+/* ---------------- COMMENTS ---------------- */
+function renderCommentsTabBadge() {
+  const el = document.getElementById('commentsTabCount');
+  if (el) el.textContent = comments.length;
+}
+async function promptAddComment(memberId) {
+  const member = members.find(m => m.id === memberId);
+  if (!member) return;
+  const text = prompt(`Add a comment under ${member.name}:`);
+  if (!text || !text.trim()) return;
+  comments.push({
+    id: uid('cm'), memberId, memberName: member.name, text: text.trim(),
+    hidden: false, remark: '', createdAt: new Date().toISOString(), remarkAt: null
+  });
+  statusLine.textContent = 'Saving...';
+  await saveComments();
+  renderCommentsTabBadge();
+  alert('Comment submitted. Thank you!');
+}
+function renderCommentsList() {
+  renderCommentsTabBadge();
+  const container = document.getElementById('commentsListArea');
+  const emptyEl = document.getElementById('commentsEmpty');
+  const admin = isAdminLoggedIn();
+  const visible = admin ? comments : comments.filter(c => !c.hidden);
+  document.getElementById('commentsListCount').textContent = visible.length;
+  if (visible.length === 0) {
+    container.innerHTML = '';
+    emptyEl.style.display = 'block';
+    return;
+  }
+  emptyEl.style.display = 'none';
+  const sorted = visible.slice().sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+  container.innerHTML = sorted.map(c => {
+    const when = c.createdAt ? new Date(c.createdAt).toLocaleString() : '';
+    const remarkHtml = c.remark
+      ? `<div class="status" style="color:var(--accent); margin-top:4px;">📝 Note Updated: ${escapeHtml(c.remark)}</div>`
+      : '';
+    const hiddenBadge = c.hidden ? '<span class="count-pill" style="background:var(--danger-soft); color:var(--danger);">Hidden</span>' : '';
+    const adminButtons = admin ? `
+      <div class="member-row-actions" style="margin-top:6px;">
+        <button class="btn-edit" data-action="remark" data-id="${c.id}">Add/Edit Remark</button>
+        <button class="btn-ghost" data-action="hide" data-id="${c.id}">${c.hidden ? 'Unhide' : 'Hide'}</button>
+        <button class="btn-danger" data-action="delete" data-id="${c.id}">Delete</button>
+      </div>` : '';
+    return `
+      <div class="history-row" style="flex-direction:column; align-items:stretch;">
+        <div style="display:flex; justify-content:space-between; align-items:baseline;">
+          <div class="hr-info">
+            <div class="hr-name">${escapeHtml(c.memberName)} ${hiddenBadge}</div>
+            <div class="hr-date">${escapeHtml(when)}</div>
+          </div>
+        </div>
+        <div style="margin-top:4px;">${escapeHtml(c.text)}</div>
+        ${remarkHtml}
+        ${adminButtons}
+      </div>`;
+  }).join('');
+
+  container.querySelectorAll('[data-action="delete"]').forEach(b => {
+    b.addEventListener('click', async () => {
+      if (!verifyAdminPasswordPrompt()) return;
+      if (!confirm('Delete this comment?')) return;
+      comments = comments.filter(c => c.id !== b.dataset.id);
+      statusLine.textContent = 'Saving...';
+      await saveComments();
+      renderCommentsList();
+    });
+  });
+  container.querySelectorAll('[data-action="hide"]').forEach(b => {
+    b.addEventListener('click', async () => {
+      const c = comments.find(x => x.id === b.dataset.id);
+      if (!c) return;
+      c.hidden = !c.hidden;
+      statusLine.textContent = 'Saving...';
+      await saveComments();
+      renderCommentsList();
+    });
+  });
+  container.querySelectorAll('[data-action="remark"]').forEach(b => {
+    b.addEventListener('click', async () => {
+      const c = comments.find(x => x.id === b.dataset.id);
+      if (!c) return;
+      const next = prompt('Reply / remark for this comment:', c.remark || '');
+      if (next === null) return;
+      c.remark = next.trim();
+      c.remarkAt = c.remark ? new Date().toISOString() : null;
+      statusLine.textContent = 'Saving...';
+      await saveComments();
+      renderCommentsList();
+    });
+  });
+}
+
 function findMemberMatches(query) {
   const q = query.trim().toLowerCase();
-  if (!q) return [];
+  if (!q) return { active: [], inactive: [] };
   const exactCode = members.find(m => m.code === q.trim());
-  if (exactCode) return [exactCode];
-  return members.filter(m => m.name.toLowerCase().includes(q)).slice(0, 8);
+  const pool = exactCode
+    ? [exactCode]
+    : members.filter(m => m.name.toLowerCase().includes(q) || (m.nickname || '').toLowerCase().includes(q)).slice(0, 10);
+  const isInactive = m => (m.status || '').toLowerCase() === 'inactive';
+  return {
+    active: pool.filter(m => !isInactive(m)),
+    inactive: pool.filter(isInactive)
+  };
 }
 
 function isAlreadyPresent(memberId) {
@@ -1112,16 +1361,17 @@ function isAlreadyPresent(memberId) {
 
 function renderCheckinResults() {
   const query = document.getElementById('ciSearch').value;
-  const results = findMemberMatches(query);
+  const { active: activeResults, inactive: inactiveResults } = findMemberMatches(query);
   const resultsEl = document.getElementById('ciResults');
   if (!query.trim()) { resultsEl.innerHTML = ''; return; }
-  if (results.length === 0) {
+  if (activeResults.length === 0 && inactiveResults.length === 0) {
     resultsEl.innerHTML = '<div class="empty" style="text-align:center;">No matching member found.</div>';
     return;
   }
   const hasSession = !!(activeService && activeService.serviceName);
   const canChangeAttendance = hasSession && isAdminLoggedIn();
-  resultsEl.innerHTML = results.map(m => {
+
+  function cardHtml(m, dimmed) {
     const existing = isAlreadyPresent(m.id);
     let dobText = '';
     if (m.dob) {
@@ -1135,7 +1385,9 @@ function renderCheckinResults() {
       `Birthday: ${dobText ? escapeHtml(dobText) : '—'}`
     ];
     let buttonHtml;
-    if (!hasSession) {
+    if (dimmed) {
+      buttonHtml = `<span class="status" style="color:var(--danger);">Inactive</span>`;
+    } else if (!hasSession) {
       buttonHtml = `<button class="btn-present" disabled>No active session</button>`;
     } else if (existing) {
       buttonHtml = `<button class="btn-present" disabled>✓ In</button>`;
@@ -1145,14 +1397,25 @@ function renderCheckinResults() {
       buttonHtml = `<button class="btn-present" data-member="${m.id}">✅ Present</button>`;
     }
     return `
-    <div class="match-card">
+    <div class="match-card"${dimmed ? ' style="opacity:0.55;"' : ''}>
       <div class="info">
-        <div class="name">${escapeHtml(m.name)}</div>
+        <div class="name comment-trigger" data-member="${m.id}" style="cursor:pointer;" title="Click to add a comment">${escapeHtml(m.name)}${m.nickname ? ` <span class="status">"${escapeHtml(m.nickname)}"</span>` : ''}</div>
         <div class="kawan">${detailParts.join(' · ')}</div>
       </div>
       ${buttonHtml}
     </div>`;
-  }).join('');
+  }
+
+  let html = activeResults.map(m => cardHtml(m, false)).join('');
+  if (inactiveResults.length > 0) {
+    html += `<div class="status" style="margin:10px 0 4px;">Inactive members matching "${escapeHtml(query)}":</div>`;
+    html += inactiveResults.map(m => cardHtml(m, true)).join('');
+  }
+  resultsEl.innerHTML = html;
+
+  resultsEl.querySelectorAll('.comment-trigger').forEach(el => {
+    el.addEventListener('click', () => promptAddComment(el.dataset.member));
+  });
 
   resultsEl.querySelectorAll('.btn-present:not([disabled])').forEach(btn => {
     btn.addEventListener('click', async () => {
@@ -1832,6 +2095,52 @@ function formatDateGenerated(d) {
   hours = hours % 12; if (hours === 0) hours = 12;
   return `${months[d.getMonth()]} ${d.getDate()},${d.getFullYear()} ${hours}:${minutes} ${ampm}`;
 }
+function currentActiveReportText() {
+  if (!activeService || !activeService.serviceName) return null;
+  const presentRecordsActive = attendance.filter(a => a.serviceName === activeService.serviceName && a.serviceDate === activeService.serviceDate);
+  const presentIdsActive = new Set(presentRecordsActive.map(a => a.memberId));
+  const absentMembersActive = members.filter(m => !presentIdsActive.has(m.id));
+  return buildActiveServiceReportText(activeService.serviceName, activeService.serviceDate, presentRecordsActive, absentMembersActive);
+}
+document.getElementById('shareWhatsAppBtn').addEventListener('click', () => {
+  const text = currentActiveReportText();
+  if (!text) return;
+  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+});
+document.getElementById('shareMessengerBtn').addEventListener('click', async () => {
+  const text = currentActiveReportText();
+  if (!text) return;
+  if (navigator.share) {
+    try { await navigator.share({ text }); return; } catch (e) { /* user cancelled or unsupported, fall through */ }
+  }
+  try {
+    await navigator.clipboard.writeText(text);
+    document.getElementById('shareStatusLine').textContent = 'Report copied — opening Messenger, paste it into a chat.';
+  } catch (e) {
+    document.getElementById('shareStatusLine').textContent = 'Could not copy automatically — please use "Copy to Clipboard" instead.';
+  }
+  window.open('https://www.messenger.com/', '_blank');
+});
+document.getElementById('shareCopyBtn').addEventListener('click', async () => {
+  const text = currentActiveReportText();
+  if (!text) return;
+  try {
+    await navigator.clipboard.writeText(text);
+    document.getElementById('shareStatusLine').textContent = 'Report copied to clipboard!';
+  } catch (e) {
+    document.getElementById('shareStatusLine').textContent = 'Could not copy — your browser may not allow clipboard access here.';
+  }
+});
+document.getElementById('shareNativeBtn').addEventListener('click', async () => {
+  const text = currentActiveReportText();
+  if (!text) return;
+  if (navigator.share) {
+    try { await navigator.share({ text }); } catch (e) { /* cancelled */ }
+  } else {
+    document.getElementById('shareStatusLine').textContent = 'Direct share isn\'t supported in this browser — try Copy to Clipboard instead.';
+  }
+});
+
 function buildActiveServiceReportText(serviceName, serviceDate, presentRecords, absentMembers) {
   const lines = [];
   lines.push(`${serviceName} "${serviceDate}"`);
@@ -1907,6 +2216,242 @@ async function trySync() {
   } catch (e) {
     setSyncStatus('Sync error: ' + (e.message || e), 'bad');
   }
+}
+
+/* ---------------- KAGALAKAN (Contributions) ---------------- */
+const KG_SHORT_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function entryKey(contribId, memberId, period) { return `${contribId}|${memberId}|${period}`; }
+function getEntry(contribId, memberId, period) {
+  return kagalakanEntries[entryKey(contribId, memberId, period)] || { amount: 0, paid: false };
+}
+function allMembersByKawan() {
+  const groups = {};
+  members.forEach(m => { const k = m.kawan || 'Unassigned'; (groups[k] = groups[k] || []).push(m); });
+  return groups;
+}
+function kgPeriodsForContribution(contrib) {
+  if (contrib.category === 'monthly') {
+    const periods = [], labels = [];
+    for (let m = 0; m < 12; m++) { periods.push(`${contrib.year}-${String(m + 1).padStart(2, '0')}`); labels.push(KG_SHORT_MONTHS[m]); }
+    return { periods, labels };
+  }
+  if (contrib.category === 'weekly') {
+    const month = parseInt(document.getElementById('kgWeekMonth').value, 10) || (new Date().getMonth() + 1);
+    const year = parseInt(document.getElementById('kgWeekYear').value, 10) || contrib.year;
+    const periods = [], labels = [];
+    for (let w = 1; w <= 5; w++) { periods.push(`${year}-${String(month).padStart(2, '0')}-W${w}`); labels.push('Week ' + w); }
+    return { periods, labels };
+  }
+  // onetime
+  return { periods: [String(contrib.year)], labels: ['Paid'] };
+}
+
+/* Admin: manage contributions */
+document.getElementById('kgAddContributionBtn').addEventListener('click', async () => {
+  if (!isAdminLoggedIn()) { alert('Admin login required.'); return; }
+  const name = document.getElementById('kgNewName').value.trim();
+  const category = document.getElementById('kgNewCategory').value;
+  const yearVal = parseInt(document.getElementById('kgNewYear').value, 10);
+  const year = yearVal || parseInt(currentYearStr(), 10);
+  if (!name) { alert('Enter a contribution name.'); return; }
+  kagalakanContributions.push({ id: uid('kg'), name, category, year });
+  document.getElementById('kgNewName').value = '';
+  document.getElementById('kgNewYear').value = '';
+  statusLine.textContent = 'Saving...';
+  await saveKagalakanContributions();
+  renderKagalakanContributionMgmt();
+  renderKagalakanContributionOptions();
+});
+function renderKagalakanContributionMgmt() {
+  const container = document.getElementById('kgContributionMgmtList');
+  if (!container) return;
+  if (kagalakanContributions.length === 0) { container.innerHTML = '<div class="empty">No contributions yet.</div>'; return; }
+  container.innerHTML = kagalakanContributions.map(c => `
+    <div class="kawan-mgmt-row">
+      <div class="kmr-name">${escapeHtml(c.name)} <span class="count-pill">${escapeHtml(c.category)} · ${c.year}</span></div>
+      <button class="btn-danger" data-id="${c.id}">Delete</button>
+    </div>`).join('');
+  container.querySelectorAll('.btn-danger').forEach(b => {
+    b.addEventListener('click', async () => {
+      if (!verifyAdminPasswordPrompt()) return;
+      if (!confirm('Delete this contribution? All its payment records and remarks will be removed.')) return;
+      const id = b.dataset.id;
+      kagalakanContributions = kagalakanContributions.filter(c => c.id !== id);
+      Object.keys(kagalakanEntries).forEach(k => { if (k.startsWith(id + '|')) delete kagalakanEntries[k]; });
+      kagalakanRemarks = kagalakanRemarks.filter(r => r.contributionId !== id);
+      statusLine.textContent = 'Saving...';
+      await saveKagalakanContributions();
+      await saveKagalakanEntries();
+      await saveKagalakanRemarks();
+      renderKagalakanContributionMgmt();
+      renderKagalakanContributionOptions();
+      renderKgRemarksInbox();
+    });
+  });
+}
+
+/* Admin: remarks inbox */
+function renderKgRemarksInbox() {
+  const countEl = document.getElementById('kgRemarksInboxCount');
+  const container = document.getElementById('kgRemarksInboxList');
+  if (!container) return;
+  const pending = kagalakanRemarks.filter(r => r.status === 'pending');
+  if (countEl) countEl.textContent = pending.length;
+  if (pending.length === 0) { container.innerHTML = '<div class="empty">No pending remarks.</div>'; return; }
+  container.innerHTML = pending.slice().sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '')).map(r => {
+    const contrib = kagalakanContributions.find(c => c.id === r.contributionId);
+    return `
+    <div class="kawan-mgmt-row" style="flex-direction:column; align-items:stretch;">
+      <div class="kmr-name">${escapeHtml(r.memberName)} — ${escapeHtml(contrib ? contrib.name : 'Unknown contribution')}</div>
+      <div style="margin:4px 0;">${escapeHtml(r.text)}</div>
+      <button class="btn-primary" data-id="${r.id}" style="align-self:flex-start;">Mark as Resolved</button>
+    </div>`;
+  }).join('');
+  container.querySelectorAll('button').forEach(b => {
+    b.addEventListener('click', async () => {
+      const r = kagalakanRemarks.find(x => x.id === b.dataset.id);
+      if (!r) return;
+      r.status = 'resolved';
+      r.resolvedAt = new Date().toISOString();
+      statusLine.textContent = 'Saving...';
+      await saveKagalakanRemarks();
+      renderKgRemarksInbox();
+      renderKagalakanTable();
+    });
+  });
+}
+
+/* Everyone: remarks under a member's row */
+function kgRemarkCellHtml(contribId, memberId) {
+  const relevant = kagalakanRemarks.filter(r => r.contributionId === contribId && r.memberId === memberId);
+  if (relevant.length === 0) {
+    return `<button class="btn-ghost kg-remark-btn" data-contrib="${contribId}" data-member="${memberId}">+ Remark</button>`;
+  }
+  const latest = relevant.slice().sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))[0];
+  if (latest.status === 'resolved') {
+    return `<span class="status" style="color:var(--accent);">✅ Notes Updated</span> <button class="btn-ghost kg-remark-btn" data-contrib="${contribId}" data-member="${memberId}">+ New</button>`;
+  }
+  return `<span class="status" style="color:var(--warn);">🕓 Pending</span>`;
+}
+async function promptKagalakanRemark(contribId, memberId) {
+  const member = members.find(m => m.id === memberId);
+  if (!member) return;
+  const text = prompt(`Add a remark for ${member.name} regarding this contribution:`);
+  if (!text || !text.trim()) return;
+  kagalakanRemarks.push({
+    id: uid('kr'), contributionId: contribId, memberId, memberName: member.name,
+    text: text.trim(), status: 'pending', createdAt: new Date().toISOString(), resolvedAt: null
+  });
+  statusLine.textContent = 'Saving...';
+  await saveKagalakanRemarks();
+  renderKgRemarksInbox();
+  renderKagalakanTable();
+  alert('Remark submitted. The admin will be notified.');
+}
+
+/* Main table */
+function updateWeekControlsVisibility() {
+  const contribId = document.getElementById('kgSelectContribution').value;
+  const contrib = kagalakanContributions.find(c => c.id === contribId);
+  const isWeekly = !!(contrib && contrib.category === 'weekly');
+  document.getElementById('kgWeekMonthField').style.display = isWeekly ? 'block' : 'none';
+  document.getElementById('kgWeekYearField').style.display = isWeekly ? 'block' : 'none';
+}
+function renderKagalakanTable() {
+  const wrap = document.getElementById('kgTableWrap');
+  const contribId = document.getElementById('kgSelectContribution').value;
+  if (!contribId) {
+    wrap.innerHTML = '<div class="card"><div class="empty">No contribution selected.</div></div>';
+    document.getElementById('kgTotalLine').textContent = '';
+    return;
+  }
+  const contrib = kagalakanContributions.find(c => c.id === contribId);
+  if (!contrib) { wrap.innerHTML = ''; return; }
+  const { periods, labels } = kgPeriodsForContribution(contrib);
+  const admin = isAdminLoggedIn();
+
+  let total = 0;
+  members.forEach(m => periods.forEach(p => { total += (getEntry(contribId, m.id, p).amount || 0); }));
+  document.getElementById('kgTotalLine').textContent = `Total Collected: ${total.toFixed(2)}`;
+
+  const groups = allMembersByKawan();
+  const kawanNames = Object.keys(groups).sort();
+  wrap.innerHTML = kawanNames.map(k => `
+    <div class="card kawan-group">
+      <h3>${escapeHtml(k)} <span class="count-pill">${groups[k].length}</span></h3>
+      <div style="overflow-x:auto;">
+      <table><thead><tr><th>Name</th>${labels.map(l => `<th>${escapeHtml(l)}</th>`).join('')}<th>Remarks</th></tr></thead><tbody>
+        ${groups[k].map(m => {
+          const cells = periods.map(p => {
+            const entry = getEntry(contribId, m.id, p);
+            const badgeClass = entry.paid ? 'pay-yes' : 'pay-no';
+            const label = entry.paid ? 'YES' : 'NO';
+            const amountText = entry.amount ? ` (${entry.amount})` : '';
+            if (admin) {
+              return `<td><button class="${badgeClass}" data-contrib="${contribId}" data-member="${m.id}" data-period="${p}">${label}${amountText}</button></td>`;
+            }
+            return `<td><span class="kg-cell-view ${badgeClass}">${label}${amountText}</span></td>`;
+          }).join('');
+          return `<tr><td>${escapeHtml(m.name)}</td>${cells}<td>${kgRemarkCellHtml(contribId, m.id)}</td></tr>`;
+        }).join('')}
+      </tbody></table>
+      </div>
+    </div>
+  `).join('');
+
+  if (admin) {
+    wrap.querySelectorAll('button.pay-yes, button.pay-no').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const cId = btn.dataset.contrib, mId = btn.dataset.member, p = btn.dataset.period;
+        const current = getEntry(cId, mId, p);
+        const input = prompt('Enter amount paid (leave blank or 0 for not paid):', current.amount || '');
+        if (input === null) return;
+        const amount = parseFloat(input) || 0;
+        kagalakanEntries[entryKey(cId, mId, p)] = { amount, paid: amount > 0 };
+        statusLine.textContent = 'Saving...';
+        await saveKagalakanEntries();
+        renderKagalakanTable();
+      });
+    });
+  }
+  wrap.querySelectorAll('.kg-remark-btn').forEach(btn => {
+    btn.addEventListener('click', () => promptKagalakanRemark(btn.dataset.contrib, btn.dataset.member));
+  });
+}
+
+function renderKagalakanContributionOptions() {
+  const sel = document.getElementById('kgSelectContribution');
+  const prevVal = sel.value;
+  sel.innerHTML = kagalakanContributions.map(c => `<option value="${c.id}">${escapeHtml(c.name)} (${escapeHtml(c.category)}, ${c.year})</option>`).join('');
+  if (kagalakanContributions.some(c => c.id === prevVal)) sel.value = prevVal;
+
+  const monthSel = document.getElementById('kgWeekMonth');
+  if (monthSel.options.length === 0) {
+    monthSel.innerHTML = KG_SHORT_MONTHS.map((m, i) => `<option value="${i + 1}">${m}</option>`).join('');
+    monthSel.value = new Date().getMonth() + 1;
+  }
+  const yearInput = document.getElementById('kgWeekYear');
+  if (!yearInput.value) yearInput.value = currentYearStr();
+
+  updateWeekControlsVisibility();
+  if (kagalakanContributions.length === 0) {
+    document.getElementById('kgTableWrap').innerHTML = '<div class="card"><div class="empty">No contributions yet. Ask an admin to add one.</div></div>';
+    document.getElementById('kgTotalLine').textContent = '';
+    return;
+  }
+  renderKagalakanTable();
+}
+document.getElementById('kgSelectContribution').addEventListener('change', () => { updateWeekControlsVisibility(); renderKagalakanTable(); });
+document.getElementById('kgWeekMonth').addEventListener('change', renderKagalakanTable);
+document.getElementById('kgWeekYear').addEventListener('change', renderKagalakanTable);
+
+function renderKagalakanAdminUI() {
+  const admin = isAdminLoggedIn();
+  document.getElementById('kagalakanAdminManage').style.display = admin ? 'block' : 'none';
+  document.getElementById('kgRemarksInboxCard').style.display = admin ? 'block' : 'none';
+  if (admin) { renderKagalakanContributionMgmt(); renderKgRemarksInbox(); }
+  renderKagalakanTable();
 }
 
 loadAll();
