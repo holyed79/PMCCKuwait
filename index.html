@@ -214,6 +214,7 @@
   .kawan-mgmt-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); }
   .kawan-mgmt-row:last-child { border-bottom: none; }
   .kawan-mgmt-row .kmr-name { flex: 1; font-weight: 700; font-size: 13px; }
+  .kg-remarks-scroll { max-height: 330px; overflow-y: auto; }
 
   /* Sync status */
   .sync-status { font-size: 12px; color: var(--muted); margin-top: 8px; }
@@ -224,21 +225,52 @@
   .pay-no { background: var(--danger-soft); color: var(--danger); border: 1px solid var(--danger); border-radius: 6px; padding: 3px 9px; font-size: 12px; font-weight: 700; }
   button.pay-yes, button.pay-no { cursor: pointer; }
   .kg-cell-view { cursor: default; display: inline-block; }
+  /* Site-wide access gate */
+  #accessGate {
+    position: fixed; inset: 0; background: var(--bg); z-index: 1000;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .access-box {
+    max-width: 360px; width: 90%; text-align: center; background: var(--card);
+    border: 1px solid var(--line); border-radius: 14px; padding: 32px 24px;
+  }
+  .access-box h2 { margin: 0 0 6px; }
+  .access-box p { color: var(--muted); margin: 0 0 18px; font-size: 13px; }
+  .access-box input { text-align: center; }
+  .access-box .err { color: var(--danger); font-size: 12px; margin-top: 10px; min-height: 16px; }
 </style>
 </head>
 <body>
-<div class="wrap">
+<div id="accessGate">
+  <div class="access-box" id="accessStepSearch">
+    <h2>Welcome to PO!</h2>
+    <p>Search your name to continue</p>
+    <input type="text" id="gateNameSearch" placeholder="Type your name...">
+    <div id="gateNameResults" style="margin-top:10px; text-align:left; max-height:260px; overflow-y:auto;"></div>
+  </div>
+  <div class="access-box" id="accessStepPassword" style="display:none;">
+    <h2>Welcome, <span id="gateSelectedName"></span>!</h2>
+    <p>Enter the password to continue</p>
+    <input type="password" id="accessPasswordInput" placeholder="Password" autocomplete="off">
+    <button class="btn-primary" id="accessSubmitBtn" style="width:100%; margin-top:12px;">Enter</button>
+    <button class="btn-ghost" id="gateBackBtn" style="width:100%; margin-top:8px;">← Not you? Search again</button>
+    <div class="err" id="accessError"></div>
+  </div>
+</div>
+<div class="wrap" style="display:none;">
   <header>
     <h1>Attendance</h1>
     <span class="status" id="statusLine">Loading...</span>
+    <button class="btn-ghost" id="siteLogoutBtn" style="margin-left:10px;">Logout</button>
   </header>
+
 
   <div class="tabs">
     <button class="tab-btn active" data-tab="checkin">Attendance</button>
+    <button class="tab-btn" data-tab="kagalakan">Kagalakan</button>
     <button class="tab-btn" data-tab="admin">Admin</button>
     <button class="tab-btn" data-tab="reports">Reports</button>
     <button class="tab-btn" data-tab="comments">Comments <span class="count-pill" id="commentsTabCount">0</span></button>
-    <button class="tab-btn" data-tab="kagalakan">Kagalakan</button>
   </div>
 
   <!-- CHECK-IN (attendee-facing) -->
@@ -309,24 +341,11 @@
         <span class="status" id="adminWhoAmI" style="float:left; margin-top:8px;"></span>
         <button class="btn-ghost" id="adminLogoutBtn">Log Out</button>
         <button class="btn-ghost" id="changeAdminPasswordBtn">Change Password</button>
+        <button class="btn-ghost" id="openAdminSettingsBtn">⚙ Settings</button>
       </div>
 
-      <div class="card" id="adminAccountsCard" style="display:none;">
-        <h3 style="margin-top:0;">Admin Accounts <span class="status">(Master Admin only)</span></h3>
-        <div id="adminAccountsList"></div>
-        <div class="row" style="margin-top:8px;">
-          <div class="field">
-            <label for="newAdminUsername">New Username</label>
-            <input type="text" id="newAdminUsername" placeholder="e.g. sister_grace" autocomplete="off">
-          </div>
-          <div class="field">
-            <label for="newAdminPassword">Password</label>
-            <input type="text" id="newAdminPassword" placeholder="Set a password" autocomplete="off">
-          </div>
-          <button class="btn-primary" id="addAdminAccountBtn" style="width:100%;">+ Create Admin Account</button>
-        </div>
-      </div>
-
+      <!-- MAIN ADMIN VIEW -->
+      <div id="adminMainView">
       <div class="card">
         <h3 style="margin-top:0;">Active Service</h3>
         <div class="row">
@@ -349,13 +368,37 @@
         <h3 style="margin-top:0;" id="memberFormTitle">Add Member</h3>
         <div class="row">
           <div class="field">
-            <label for="mName">Name</label>
-            <input type="text" id="mName" placeholder="Full name">
+            <label for="mFirstName">First Name</label>
+            <input type="text" id="mFirstName" placeholder="First name">
           </div>
+          <div class="field">
+            <label for="mLastName">Last Name</label>
+            <input type="text" id="mLastName" placeholder="Last name">
+          </div>
+        </div>
+        <div class="row" style="margin-top:8px;">
+          <div class="field">
+            <label for="mMiddleName">Middle Name</label>
+            <input type="text" id="mMiddleName" placeholder="Middle name">
+          </div>
+          <div class="field">
+            <label for="mNickname">Nickname</label>
+            <input type="text" id="mNickname" placeholder="e.g. Ed">
+          </div>
+        </div>
+        <div class="row" style="margin-top:8px;">
           <div class="field">
             <label for="mKawan">Kawan Name</label>
             <input type="text" id="mKawan" list="kawanList" placeholder="e.g. Kawan A">
             <datalist id="kawanList"></datalist>
+          </div>
+          <div class="field">
+            <label for="mStatus">Status</label>
+            <select id="mStatus">
+              <option value="">—</option>
+              <option value="Active">Active</option>
+              <option value="InActive">InActive</option>
+            </select>
           </div>
         </div>
         <div class="row" style="margin-top:8px;">
@@ -388,16 +431,6 @@
         <button class="btn-ghost" id="toggleMoreFieldsBtn" type="button" style="margin-top:10px;">+ More Fields</button>
         <div id="moreMemberFields" style="display:none; margin-top:8px;">
           <div class="row">
-            <div class="field">
-              <label for="mNickname">Nickname</label>
-              <input type="text" id="mNickname" placeholder="e.g. Ed">
-            </div>
-            <div class="field">
-              <label for="mMiddleName">Middle Name</label>
-              <input type="text" id="mMiddleName" placeholder="Middle name">
-            </div>
-          </div>
-          <div class="row" style="margin-top:8px;">
             <div class="field">
               <label for="mArea">Area</label>
               <input type="text" id="mArea" placeholder="e.g. Jerusalem">
@@ -447,12 +480,8 @@
               <input type="text" id="mDesignation" placeholder="e.g. Kawan Leader">
             </div>
             <div class="field">
-              <label for="mStatus">Status</label>
-              <select id="mStatus">
-                <option value="">—</option>
-                <option value="Active">Active</option>
-                <option value="InActive">InActive</option>
-              </select>
+              <label for="mCode">Member Code / ID</label>
+              <input type="text" id="mCode" placeholder="Auto-generated if left blank">
             </div>
           </div>
           <div class="row" style="margin-top:8px;">
@@ -460,16 +489,65 @@
               <label for="mRemarks">Remarks</label>
               <input type="text" id="mRemarks" placeholder="Notes">
             </div>
-            <div class="field">
-              <label for="mCode">Member Code / ID</label>
-              <input type="text" id="mCode" placeholder="Auto-generated if left blank">
-            </div>
           </div>
         </div>
 
         <div class="row" style="margin-top:10px;">
           <button class="btn-primary" id="addMemberBtn" style="width:100%;">+ Add Member</button>
           <button class="btn-ghost" id="cancelEditMemberBtn" style="width:100%; display:none;">Cancel Edit</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top:0;">Search Members</h3>
+        <input type="text" id="memberSearchInput" placeholder="Search by name, kawan, mobile, or code...">
+      </div>
+
+      <div id="membersList"></div>
+
+      <div class="card">
+        <h3 style="margin-top:0;">Local Computer Sync</h3>
+        <p class="status" style="margin-top:0;">Automatically saves today's services and attendance to a folder on this computer (Chrome/Edge only).</p>
+        <div class="row">
+          <button class="btn-primary" id="chooseSyncFolderBtn" style="width:100%;">Choose Sync Folder</button>
+          <button class="btn-ghost" id="forgetSyncFolderBtn" style="width:100%;">Disconnect Folder</button>
+        </div>
+        <p class="sync-status" id="syncStatusLine">No sync folder set.</p>
+      </div>
+      </div>
+
+      <!-- SETTINGS VIEW -->
+      <div id="adminSettingsView" style="display:none;">
+      <div class="card">
+        <button class="btn-ghost" id="backFromSettingsBtn">← Back</button>
+      </div>
+
+      <div class="card" id="adminAccountsCard" style="display:none;">
+        <h3 style="margin-top:0;">Admin Accounts <span class="status">(Master Admin only)</span></h3>
+        <div id="adminAccountsList"></div>
+        <div class="row" style="margin-top:8px;">
+          <div class="field">
+            <label for="newAdminUsername">New Username</label>
+            <input type="text" id="newAdminUsername" placeholder="e.g. sister_grace" autocomplete="off">
+          </div>
+          <div class="field">
+            <label for="newAdminPassword">Password</label>
+            <input type="text" id="newAdminPassword" placeholder="Set a password" autocomplete="off">
+          </div>
+          <button class="btn-primary" id="addAdminAccountBtn" style="width:100%;">+ Create Admin Account</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top:0;">Member Access Passwords</h3>
+        <p class="status" style="margin-top:0;">Anyone entering one of these passwords on the welcome screen can open the app on their device — separate from Admin login. Add several if different groups should use different passwords.</p>
+        <div id="accessPasswordsList"></div>
+        <div class="row" style="margin-top:8px;">
+          <div class="field">
+            <label for="newAccessPassword">New Password</label>
+            <input type="text" id="newAccessPassword" placeholder="e.g. po2026" autocomplete="off">
+          </div>
+          <button class="btn-primary" id="addAccessPasswordBtn" style="width:100%;">+ Add Password</button>
         </div>
       </div>
 
@@ -504,22 +582,6 @@
           <button class="btn-primary" id="addKawanBtn" style="width:100%;">+ Add Kawan</button>
         </div>
       </div>
-
-      <div class="card">
-        <h3 style="margin-top:0;">Search Members</h3>
-        <input type="text" id="memberSearchInput" placeholder="Search by name, kawan, mobile, or code...">
-      </div>
-
-      <div id="membersList"></div>
-
-      <div class="card">
-        <h3 style="margin-top:0;">Local Computer Sync</h3>
-        <p class="status" style="margin-top:0;">Automatically saves today's services and attendance to a folder on this computer (Chrome/Edge only).</p>
-        <div class="row">
-          <button class="btn-primary" id="chooseSyncFolderBtn" style="width:100%;">Choose Sync Folder</button>
-          <button class="btn-ghost" id="forgetSyncFolderBtn" style="width:100%;">Disconnect Folder</button>
-        </div>
-        <p class="sync-status" id="syncStatusLine">No sync folder set.</p>
       </div>
     </div>
   </div>
@@ -570,8 +632,18 @@
   <!-- COMMENTS -->
   <div class="panel" id="panel-comments">
     <div class="card">
+      <h3 style="margin-top:0;">Add a Comment</h3>
+      <p class="status" id="commentAsWhoLine" style="margin-top:0;"></p>
+      <div id="commentComposeArea">
+        <textarea id="commentText" rows="3" style="width:100%; padding:8px; border:1px solid var(--line); border-radius:8px; font-family:inherit; font-size:14px;" placeholder="Write your comment..."></textarea>
+        <div class="row" style="margin-top:8px;">
+          <button class="btn-primary" id="commentSendBtn" style="width:100%;">Send Comment</button>
+        </div>
+      </div>
+    </div>
+    <div class="card">
       <h3 style="margin-top:0;">Comments <span class="count-pill" id="commentsListCount"></span></h3>
-      <p class="status" style="margin-top:0;">Comments left under a member's name from the Attendance search. Admins can hide, delete, or leave a reply so the member knows it's been handled.</p>
+      <p class="status" style="margin-top:0;">Admins can hide, delete, or leave a reply so the member knows it's been handled.</p>
       <div id="commentsListArea"></div>
       <div class="empty" id="commentsEmpty" style="display:none;">No comments yet.</div>
     </div>
@@ -605,7 +677,7 @@
 
     <div class="card" id="kgRemarksInboxCard" style="display:none;">
       <h3 style="margin-top:0;">Remarks Inbox <span class="count-pill" id="kgRemarksInboxCount"></span></h3>
-      <div id="kgRemarksInboxList"></div>
+      <div id="kgRemarksInboxList" class="kg-remarks-scroll"></div>
     </div>
 
     <div class="card">
@@ -624,6 +696,10 @@
         </div>
       </div>
       <p class="status" id="kgTotalLine" style="margin-top:8px;"></p>
+    </div>
+
+    <div class="card">
+      <input type="text" id="kgSearchInput" placeholder="Search member by name, nickname, or kawan...">
     </div>
 
     <div id="kgTableWrap"></div>
@@ -678,6 +754,8 @@ function normalizeHeader(h) { return String(h || '').toLowerCase().replace(/[^a-
 const MEMBER_FIELD_ALIASES = {
   code: ['code', 'membercode', 'memberid', 'id'],
   name: ['name', 'fullname'],
+  firstName: ['firstname', 'first'],
+  lastName: ['lastname', 'last'],
   kawan: ['kawan'],
   contact: ['contact', 'mobile', 'mobilenumber', 'mobilenumber1', 'phone'],
   dob: ['dob', 'dateofbirth', 'birthday'],
@@ -710,11 +788,11 @@ function mapCsvRowToMember(row) {
   });
   return member;
 }
-const MEMBER_EXPORT_HEADERS = ['Code','Name','Kawan','Contact','DOB','Occupation','Company','Address','Nickname','MiddleName','Area','Mobile2','Email','Facebook','AddressPhilippines','DateBaptised','ConvertedBy','Gender','Designation','Status','Remarks'];
+const MEMBER_EXPORT_HEADERS = ['Code','Name','FirstName','LastName','Kawan','Contact','DOB','Occupation','Company','Address','Nickname','MiddleName','Area','Mobile2','Email','Facebook','AddressPhilippines','DateBaptised','ConvertedBy','Gender','Designation','Status','Remarks'];
 function memberExportRows() {
   const rows = [MEMBER_EXPORT_HEADERS];
   members.forEach(m => rows.push([
-    m.code, m.name, m.kawan, m.contact, m.dob, m.occupation, m.company, m.address,
+    m.code, fullName(m), m.firstName, m.lastName, m.kawan, m.contact, m.dob, m.occupation, m.company, m.address,
     m.nickname, m.middleName, m.area, m.mobile2, m.email, m.facebook, m.addressPhilippines,
     m.dateBaptised, m.convertedBy, m.gender, m.designation, m.status, m.remarks
   ].map(v => v || '')));
@@ -734,6 +812,9 @@ let kagalakanEntries = {};       // { "contribId|memberId|period": {amount, paid
 let kagalakanRemarks = [];       // [{id, contributionId, memberId, memberName, text, status:'pending'|'resolved', createdAt, resolvedAt}]
 const DEFAULT_ADMIN_USERNAME = 'admin';
 const DEFAULT_ADMIN_PASSWORD = 'admin123';
+let accessPasswords = [];   // list of passwords members can use to open the app on their device
+const DEFAULT_ACCESS_PASSWORD = 'welcome123';
+const ACCESS_STORAGE_KEY = 'po_access_granted';
 
 const statusLine = document.getElementById('statusLine');
 
@@ -741,6 +822,45 @@ function configMissing() { return !FIREBASE_DB_URL || FIREBASE_DB_URL.startsWith
 function uid(prefix) { return prefix + '_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7); }
 function genCode() { return String(Math.floor(1000 + Math.random() * 9000)); }
 function escapeHtml(str) { const div = document.createElement('div'); div.textContent = str || ''; return div.innerHTML; }
+function memberNameMatches(m, q) {
+  const query = (q || '').toLowerCase().trim();
+  if (!query) return true;
+  return [m.firstName, m.nickname, m.lastName].some(v => (v || '').toLowerCase().includes(query));
+}
+function fullName(m) {
+  return [(m && m.firstName) || '', (m && m.lastName) || ''].filter(Boolean).join(' ').trim();
+}
+function splitLegacyName(str) {
+  const parts = (str || '').trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return { firstName: '', lastName: '' };
+  if (parts.length === 1) return { firstName: parts[0], lastName: '' };
+  return { firstName: parts.slice(0, -1).join(' '), lastName: parts[parts.length - 1] };
+}
+function migrateMemberRecord(m) {
+  let changed = false;
+  if ((!m.firstName || !m.firstName.trim()) && (!m.lastName || !m.lastName.trim()) && m.name) {
+    const split = splitLegacyName(m.name);
+    m.firstName = split.firstName;
+    m.lastName = split.lastName;
+    changed = true;
+  }
+  if (Object.prototype.hasOwnProperty.call(m, 'name')) {
+    delete m.name;
+    changed = true;
+  }
+  return changed;
+}
+function migrateMembersArray(arr) {
+  let changed = false;
+  (arr || []).forEach(m => { if (migrateMemberRecord(m)) changed = true; });
+  return changed;
+}
+function recordDisplayName(r) {
+  if ((r.firstName || '').trim() || (r.lastName || '').trim()) {
+    return [r.firstName, r.lastName].filter(Boolean).join(' ').trim();
+  }
+  return (r.name || '').trim();
+}
 
 async function fbGetArr(path) {
   const res = await fetch(`${FIREBASE_DB_URL}/${path}.json`);
@@ -819,6 +939,7 @@ async function loadAll() {
   statusLine.textContent = 'Loading...';
   try {
     members = await fbGetArr('members');
+    if (migrateMembersArray(members)) { try { await saveMembers(); } catch (e) { /* ignore */ } }
     activeService = await fbGetObj('activeService');
     serviceNames = await fbGetArr('serviceNames');
     await loadOrMigrateAdminAccounts();
@@ -828,6 +949,7 @@ async function loadAll() {
     kagalakanContributions = await fbGetArr('kagalakanContributions');
     kagalakanEntries = (await fbGetObj('kagalakanEntries')) || {};
     kagalakanRemarks = await fbGetArr('kagalakanRemarks');
+    accessPasswords = await fbGetArr('accessPasswords');
 
     await migrateOldAttendanceIfNeeded();
     attendance = [];
@@ -886,6 +1008,11 @@ async function saveKagalakanRemarks() {
   try { await fbPutArr('kagalakanRemarks', kagalakanRemarks); statusLine.textContent = 'Synced'; }
   catch (e) { statusLine.textContent = 'Save error.'; }
 }
+async function saveAccessPasswords() {
+  if (configMissing()) return;
+  try { await fbPutArr('accessPasswords', accessPasswords); statusLine.textContent = 'Synced'; }
+  catch (e) { statusLine.textContent = 'Save error.'; }
+}
 async function saveAdminAccounts() {
   if (configMissing()) return;
   try { await fbPutArr('adminAccounts', adminAccounts); statusLine.textContent = 'Synced'; }
@@ -931,7 +1058,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     if (btn.dataset.tab === 'reports') renderReportOptions();
     if (btn.dataset.tab === 'checkin') renderCheckin();
     if (btn.dataset.tab === 'admin') checkAdminSession();
-    if (btn.dataset.tab === 'comments') renderCommentsList();
+    if (btn.dataset.tab === 'comments') { renderCommentsList(); renderCommentAsWhoLine(); }
     if (btn.dataset.tab === 'kagalakan') { renderKagalakanAdminUI(); renderKagalakanContributionOptions(); }
   });
 });
@@ -951,15 +1078,28 @@ function setAdminLoggedIn(username) {
   if (username) sessionStorage.setItem('attendance_admin_user', username);
   else sessionStorage.removeItem('attendance_admin_user');
 }
+function showAdminMainView() {
+  document.getElementById('adminMainView').style.display = 'block';
+  document.getElementById('adminSettingsView').style.display = 'none';
+}
+function showAdminSettingsView() {
+  document.getElementById('adminMainView').style.display = 'none';
+  document.getElementById('adminSettingsView').style.display = 'block';
+}
+document.getElementById('openAdminSettingsBtn').addEventListener('click', showAdminSettingsView);
+document.getElementById('backFromSettingsBtn').addEventListener('click', showAdminMainView);
+
 function checkAdminSession() {
   const gate = document.getElementById('adminLoginGate');
   const content = document.getElementById('adminContent');
   if (isAdminLoggedIn()) {
     gate.style.display = 'none';
     content.style.display = 'block';
+    showAdminMainView();
     document.getElementById('adminWhoAmI').textContent = `Logged in as ${currentAdminUsername()}${isMasterSession() ? ' (Master Admin)' : ''}`;
     document.getElementById('adminAccountsCard').style.display = isMasterSession() ? 'block' : 'none';
     if (isMasterSession()) renderAdminAccounts();
+    renderAccessPasswordsList();
   } else {
     gate.style.display = 'block';
     content.style.display = 'none';
@@ -1045,6 +1185,40 @@ document.getElementById('addAdminAccountBtn').addEventListener('click', async ()
   alert(`Account "${username}" created.`);
 });
 
+/* ---------------- MEMBER ACCESS PASSWORDS (site-wide gate) ---------------- */
+function renderAccessPasswordsList() {
+  const container = document.getElementById('accessPasswordsList');
+  if (!container) return;
+  if (accessPasswords.length === 0) {
+    container.innerHTML = `<div class="empty">No custom passwords set — default password "${escapeHtml(DEFAULT_ACCESS_PASSWORD)}" is currently active.</div>`;
+    return;
+  }
+  container.innerHTML = accessPasswords.map((p, i) => `
+    <div class="kawan-mgmt-row">
+      <div class="kmr-name">${escapeHtml(p)}</div>
+      <button class="btn-danger" data-index="${i}">Remove</button>
+    </div>`).join('');
+  container.querySelectorAll('.btn-danger').forEach(b => {
+    b.addEventListener('click', async () => {
+      if (!verifyAdminPasswordPrompt()) return;
+      accessPasswords.splice(parseInt(b.dataset.index, 10), 1);
+      statusLine.textContent = 'Saving...';
+      await saveAccessPasswords();
+      renderAccessPasswordsList();
+    });
+  });
+}
+document.getElementById('addAccessPasswordBtn').addEventListener('click', async () => {
+  const val = document.getElementById('newAccessPassword').value.trim();
+  if (!val) return;
+  if (accessPasswords.includes(val)) { alert('That password already exists.'); return; }
+  accessPasswords.push(val);
+  document.getElementById('newAccessPassword').value = '';
+  statusLine.textContent = 'Saving...';
+  await saveAccessPasswords();
+  renderAccessPasswordsList();
+});
+
 function renderCheckin() {
   const noActive = document.getElementById('noActiveMsg');
   document.getElementById('ciResults').innerHTML = '';
@@ -1084,14 +1258,14 @@ function birthdayOccurrencesInRange(dobMonth, dobDay, rangeStart, rangeEnd) {
 }
 function honorificName(m) {
   const g = (m.gender || '').toLowerCase();
-  if (g === 'male') return `Bro. ${m.name}`;
-  if (g === 'female') return `Sis. ${m.name}`;
-  return m.name;
+  if (g === 'male') return `Bro. ${fullName(m)}`;
+  if (g === 'female') return `Sis. ${fullName(m)}`;
+  return fullName(m);
 }
 function renderBirthdayCelebrants() {
   const wrap = document.getElementById('bdayWrap');
   if (!wrap) return;
-  const withDob = members.filter(m => m.dob);
+  const withDob = members.filter(m => m.dob && (m.status || '').toLowerCase() !== 'inactive');
   const today = dateOnly(new Date());
   // Week runs Saturday through Friday
   const dow = today.getDay(); // Sunday=0 ... Saturday=6
@@ -1188,7 +1362,7 @@ function renderLiveRoster() {
     <div class="roster-kawan">
       <h4>${escapeHtml(k)} <span class="count-pill">${absentGroups[k].length}</span></h4>
       <table><thead><tr><th>Name</th><th></th></tr></thead><tbody>
-        ${absentGroups[k].map(m => `<tr><td>${escapeHtml(m.name)}</td><td style="text-align:right;">${canChangeAttendance ? `<button class="btn-present toggle-attendance-btn" data-member="${m.id}" data-make="present">Mark Present</button>` : ''}</td></tr>`).join('')}
+        ${absentGroups[k].map(m => `<tr><td>${escapeHtml(fullName(m))}</td><td style="text-align:right;">${canChangeAttendance ? `<button class="btn-present toggle-attendance-btn" data-member="${m.id}" data-make="present">Mark Present</button>` : ''}</td></tr>`).join('')}
       </tbody></table>
     </div>
   `).join('');
@@ -1201,7 +1375,7 @@ function renderLiveRoster() {
       <div class="roster-kawan">
         <h4>${escapeHtml(k)} <span class="count-pill">${inactiveGroups[k].length}</span></h4>
         <table><thead><tr><th>Name</th></tr></thead><tbody>
-          ${inactiveGroups[k].map(m => `<tr><td>${escapeHtml(m.name)}</td></tr>`).join('')}
+          ${inactiveGroups[k].map(m => `<tr><td>${escapeHtml(fullName(m))}</td></tr>`).join('')}
         </tbody></table>
       </div>
     `).join('');
@@ -1233,7 +1407,7 @@ async function toggleAttendance(memberId, makePresent) {
     if (!already) {
       const timeIn = new Date().toTimeString().slice(0, 5);
       attendance.push({
-        id: uid('a'), memberId, memberName: member.name, kawan: member.kawan || 'Unassigned',
+        id: uid('a'), memberId, memberName: fullName(member), kawan: member.kawan || 'Unassigned',
         serviceName: activeService.serviceName, serviceDate: activeService.serviceDate, timeIn
       });
     }
@@ -1251,13 +1425,43 @@ function renderCommentsTabBadge() {
   const el = document.getElementById('commentsTabCount');
   if (el) el.textContent = comments.length;
 }
+function renderCommentAsWhoLine() {
+  const el = document.getElementById('commentAsWhoLine');
+  const sendBtn = document.getElementById('commentSendBtn');
+  const name = getLoggedInMemberName();
+  if (name) {
+    el.textContent = `Posting as: ${name}`;
+    sendBtn.disabled = false;
+  } else {
+    el.textContent = 'You need to log out and log back in with your name to post a comment.';
+    sendBtn.disabled = true;
+  }
+}
+document.getElementById('commentSendBtn').addEventListener('click', async () => {
+  const memberId = getLoggedInMemberId();
+  const memberName = getLoggedInMemberName();
+  const text = document.getElementById('commentText').value.trim();
+  if (!memberId || !memberName) { alert('Please log out and log back in with your name first.'); return; }
+  if (!text) { alert('Please write a comment.'); return; }
+  comments.push({
+    id: uid('cm'), memberId, memberName, text,
+    hidden: false, remark: '', createdAt: new Date().toISOString(), remarkAt: null
+  });
+  statusLine.textContent = 'Saving...';
+  await saveComments();
+  renderCommentsTabBadge();
+  document.getElementById('commentText').value = '';
+  renderCommentsList();
+  alert('Comment submitted. Thank you!');
+});
+
 async function promptAddComment(memberId) {
   const member = members.find(m => m.id === memberId);
   if (!member) return;
-  const text = prompt(`Add a comment under ${member.name}:`);
+  const text = prompt(`Add a comment under ${fullName(member)}:`);
   if (!text || !text.trim()) return;
   comments.push({
-    id: uid('cm'), memberId, memberName: member.name, text: text.trim(),
+    id: uid('cm'), memberId, memberName: fullName(member), text: text.trim(),
     hidden: false, remark: '', createdAt: new Date().toISOString(), remarkAt: null
   });
   statusLine.textContent = 'Saving...';
@@ -1346,7 +1550,7 @@ function findMemberMatches(query) {
   const exactCode = members.find(m => m.code === q.trim());
   const pool = exactCode
     ? [exactCode]
-    : members.filter(m => m.name.toLowerCase().includes(q) || (m.nickname || '').toLowerCase().includes(q)).slice(0, 10);
+    : members.filter(m => memberNameMatches(m, q)).slice(0, 10);
   const isInactive = m => (m.status || '').toLowerCase() === 'inactive';
   return {
     active: pool.filter(m => !isInactive(m)),
@@ -1370,6 +1574,7 @@ function renderCheckinResults() {
   }
   const hasSession = !!(activeService && activeService.serviceName);
   const canChangeAttendance = hasSession && isAdminLoggedIn();
+  const isAdmin = isAdminLoggedIn();
 
   function cardHtml(m, dimmed) {
     const existing = isAlreadyPresent(m.id);
@@ -1396,11 +1601,18 @@ function renderCheckinResults() {
     } else {
       buttonHtml = `<button class="btn-present" data-member="${m.id}">✅ Present</button>`;
     }
+    const isInactiveNow = (m.status || '').toLowerCase() === 'inactive';
+    const adminExtra = isAdmin ? `
+      <div class="member-row-actions" style="margin-top:4px;">
+        <button class="btn-edit" data-action="toggle-status" data-member="${m.id}">${isInactiveNow ? 'Mark Active' : 'Mark Inactive'}</button>
+        <button class="btn-edit" data-action="edit-profile" data-member="${m.id}">Edit Profile</button>
+      </div>` : '';
     return `
     <div class="match-card"${dimmed ? ' style="opacity:0.55;"' : ''}>
       <div class="info">
-        <div class="name comment-trigger" data-member="${m.id}" style="cursor:pointer;" title="Click to add a comment">${escapeHtml(m.name)}${m.nickname ? ` <span class="status">"${escapeHtml(m.nickname)}"</span>` : ''}</div>
+        <div class="name comment-trigger" data-member="${m.id}" style="cursor:pointer;" title="Click to add a comment">${escapeHtml(fullName(m))}${m.nickname ? ` <span class="status">"${escapeHtml(m.nickname)}"</span>` : ''}</div>
         <div class="kawan">${detailParts.join(' · ')}</div>
+        ${adminExtra}
       </div>
       ${buttonHtml}
     </div>`;
@@ -1416,6 +1628,25 @@ function renderCheckinResults() {
   resultsEl.querySelectorAll('.comment-trigger').forEach(el => {
     el.addEventListener('click', () => promptAddComment(el.dataset.member));
   });
+  resultsEl.querySelectorAll('[data-action="toggle-status"]').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const m = members.find(x => x.id === btn.dataset.member);
+      if (!m) return;
+      const isInactiveNow = (m.status || '').toLowerCase() === 'inactive';
+      m.status = isInactiveNow ? 'Active' : 'InActive';
+      statusLine.textContent = 'Saving...';
+      await saveMembers();
+      renderCheckinResults();
+      renderLiveRoster();
+    });
+  });
+  resultsEl.querySelectorAll('[data-action="edit-profile"]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      goToAdminEditMember(btn.dataset.member);
+    });
+  });
 
   resultsEl.querySelectorAll('.btn-present:not([disabled])').forEach(btn => {
     btn.addEventListener('click', async () => {
@@ -1426,10 +1657,10 @@ function renderCheckinResults() {
       const now = new Date();
       const timeIn = now.toTimeString().slice(0,5);
       attendance.push({
-        id: uid('a'), memberId, memberName: member.name, kawan: member.kawan || 'Unassigned',
+        id: uid('a'), memberId, memberName: fullName(member), kawan: member.kawan || 'Unassigned',
         serviceName: activeService.serviceName, serviceDate: activeService.serviceDate, timeIn
       });
-      document.getElementById('ciConfirm').innerHTML = `<div class="confirm-banner">✅ ${escapeHtml(member.name)} marked present at ${timeIn}!</div>`;
+      document.getElementById('ciConfirm').innerHTML = `<div class="confirm-banner">✅ ${escapeHtml(fullName(member))} marked present at ${timeIn}!</div>`;
       document.getElementById('ciSearch').value = '';
       document.getElementById('ciResults').innerHTML = '';
       statusLine.textContent = 'Saving...';
@@ -1498,7 +1729,7 @@ let memberSearchQuery = '';
 function kawanGroups() {
   const q = memberSearchQuery.trim().toLowerCase();
   const filtered = q
-    ? members.filter(m => [m.name, m.kawan, m.contact, m.mobile2, m.code, m.nickname, m.area].some(v => (v || '').toLowerCase().includes(q)))
+    ? members.filter(m => memberNameMatches(m, q) || [m.kawan, m.contact, m.mobile2, m.code, m.area].some(v => (v || '').toLowerCase().includes(q)))
     : members;
   const groups = {};
   filtered.forEach(m => { const k = m.kawan || 'Unassigned'; (groups[k] = groups[k] || []).push(m); });
@@ -1531,7 +1762,7 @@ function renderMembers() {
           return `
           <tr>
             <td>
-              <div style="font-weight:700;">${escapeHtml(m.name)}</div>
+              <div style="font-weight:700;">${escapeHtml(fullName(m))}</div>
               <div style="color:var(--muted); font-size:11px;">${line1Parts.join(' · ')}</div>
               ${line2Parts.length ? `<div style="color:var(--muted); font-size:11px;">${line2Parts.join(' · ')}</div>` : ''}
             </td>
@@ -1568,8 +1799,8 @@ function renderKawanDatalist() {
   const names = [...new Set([...fromMembers, ...kawans])].sort();
   document.getElementById('kawanList').innerHTML = names.map(n => `<option value="${escapeHtml(n)}">`).join('');
 }
-const BASIC_MEMBER_FIELD_IDS = ['mName','mKawan','mContact','mDob','mOccupation','mCompany','mAddress'];
-const MORE_MEMBER_FIELD_IDS = ['mNickname','mMiddleName','mArea','mMobile2','mEmail','mFacebook','mAddressPH','mDateBaptised','mConvertedBy','mGender','mDesignation','mStatus','mRemarks','mCode'];
+const BASIC_MEMBER_FIELD_IDS = ['mFirstName','mLastName','mMiddleName','mNickname','mKawan','mStatus','mContact','mDob','mOccupation','mCompany','mAddress'];
+const MORE_MEMBER_FIELD_IDS = ['mArea','mMobile2','mEmail','mFacebook','mAddressPH','mDateBaptised','mConvertedBy','mGender','mDesignation','mRemarks','mCode'];
 function clearMemberForm() {
   [...BASIC_MEMBER_FIELD_IDS, ...MORE_MEMBER_FIELD_IDS].forEach(id => document.getElementById(id).value = '');
 }
@@ -1580,11 +1811,21 @@ document.getElementById('toggleMoreFieldsBtn').addEventListener('click', () => {
   el.style.display = showing ? 'none' : 'block';
   btn.textContent = showing ? '+ More Fields' : '− Hide More Fields';
 });
+function goToAdminEditMember(memberId) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  const adminBtn = document.querySelector('.tab-btn[data-tab="admin"]');
+  adminBtn.classList.add('active');
+  document.getElementById('panel-admin').classList.add('active');
+  checkAdminSession();
+  startMemberEdit(memberId);
+}
 function startMemberEdit(id) {
   const m = members.find(x => x.id === id);
   if (!m) return;
   editingMemberId = id;
-  document.getElementById('mName').value = m.name || '';
+  document.getElementById('mFirstName').value = m.firstName || '';
+  document.getElementById('mLastName').value = m.lastName || '';
   document.getElementById('mKawan').value = m.kawan || '';
   document.getElementById('mContact').value = m.contact || '';
   document.getElementById('mDob').value = m.dob || '';
@@ -1608,7 +1849,7 @@ function startMemberEdit(id) {
   document.getElementById('memberFormTitle').textContent = 'Edit Member';
   document.getElementById('addMemberBtn').textContent = 'Save Changes';
   document.getElementById('cancelEditMemberBtn').style.display = 'inline-block';
-  document.getElementById('mName').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  document.getElementById('mFirstName').scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 function cancelMemberEdit() {
   editingMemberId = null;
@@ -1619,15 +1860,16 @@ function cancelMemberEdit() {
 }
 document.getElementById('cancelEditMemberBtn').addEventListener('click', cancelMemberEdit);
 document.getElementById('addMemberBtn').addEventListener('click', async () => {
-  const name = document.getElementById('mName').value.trim();
+  const firstName = document.getElementById('mFirstName').value.trim();
+  const lastName = document.getElementById('mLastName').value.trim();
+  const middleName = document.getElementById('mMiddleName').value.trim();
+  const nickname = document.getElementById('mNickname').value.trim();
   const kawan = document.getElementById('mKawan').value.trim();
   const contact = document.getElementById('mContact').value.trim();
   const dob = document.getElementById('mDob').value;
   const occupation = document.getElementById('mOccupation').value.trim();
   const company = document.getElementById('mCompany').value.trim();
   const address = document.getElementById('mAddress').value.trim();
-  const nickname = document.getElementById('mNickname').value.trim();
-  const middleName = document.getElementById('mMiddleName').value.trim();
   const area = document.getElementById('mArea').value.trim();
   const mobile2 = document.getElementById('mMobile2').value.trim();
   const email = document.getElementById('mEmail').value.trim();
@@ -1640,17 +1882,17 @@ document.getElementById('addMemberBtn').addEventListener('click', async () => {
   const status = document.getElementById('mStatus').value;
   const remarks = document.getElementById('mRemarks').value.trim();
   const codeOverride = document.getElementById('mCode').value.trim();
-  if (!name) return;
+  if (!firstName && !lastName) return;
 
   const extraFields = {
-    nickname, middleName, area, mobile2, email, facebook,
+    firstName, lastName, nickname, middleName, area, mobile2, email, facebook,
     addressPhilippines, dateBaptised, convertedBy, gender, designation, status, remarks
   };
 
   if (editingMemberId) {
     const m = members.find(x => x.id === editingMemberId);
     if (m) {
-      m.name = name; m.kawan = kawan; m.contact = contact; m.dob = dob;
+      m.kawan = kawan; m.contact = contact; m.dob = dob;
       m.occupation = occupation; m.company = company; m.address = address;
       Object.assign(m, extraFields);
       if (codeOverride) m.code = codeOverride;
@@ -1659,7 +1901,7 @@ document.getElementById('addMemberBtn').addEventListener('click', async () => {
   } else {
     let code = codeOverride;
     if (!code) { do { code = genCode(); } while (members.some(m => m.code === code)); }
-    members.push({ id: uid('m'), name, kawan, code, contact, dob, occupation, company, address, ...extraFields });
+    members.push({ id: uid('m'), kawan, code, contact, dob, occupation, company, address, ...extraFields });
     clearMemberForm();
   }
   renderMembers(); renderKawanDatalist(); renderLiveRoster(); renderBirthdayCelebrants();
@@ -1696,14 +1938,14 @@ document.getElementById('importMembersFileInput').addEventListener('change', asy
     fileInput.value = '';
     return;
   }
-  records = records.filter(r => (r.name || '').trim());
+  records = records.filter(r => recordDisplayName(r));
   if (records.length === 0) { alert('No valid member rows found in that file.'); fileInput.value = ''; return; }
 
   const existingCodes = new Set(members.map(m => (m.code || '').toUpperCase()));
-  const existingNames = new Set(members.map(m => (m.name || '').toLowerCase().trim()));
+  const existingNames = new Set(members.map(m => fullName(m).toLowerCase().trim()));
   const toAdd = records.filter(r => {
     const codeKey = (r.code || '').toUpperCase();
-    const nameKey = (r.name || '').toLowerCase().trim();
+    const nameKey = recordDisplayName(r).toLowerCase().trim();
     if (codeKey && existingCodes.has(codeKey)) return false;
     if (!codeKey && nameKey && existingNames.has(nameKey)) return false;
     return true;
@@ -1718,8 +1960,14 @@ document.getElementById('importMembersFileInput').addEventListener('change', asy
       do { code = genCode(); } while (members.some(m => m.code === code) || existingCodes.has(code));
     }
     existingCodes.add(code.toUpperCase());
+    let firstName = (r.firstName || '').trim();
+    let lastName = (r.lastName || '').trim();
+    if (!firstName && !lastName && r.name) {
+      const split = splitLegacyName(r.name);
+      firstName = split.firstName; lastName = split.lastName;
+    }
     members.push({
-      id: uid('m'), code, name: r.name || '', kawan: r.kawan || '',
+      id: uid('m'), code, firstName, lastName, kawan: r.kawan || '',
       contact: r.contact || '', dob: r.dob || '',
       occupation: r.occupation || '', company: r.company || '', address: r.address || '',
       nickname: r.nickname || '', middleName: r.middleName || '', area: r.area || '',
@@ -1745,10 +1993,10 @@ document.getElementById('importProvidedMembersBtn').addEventListener('click', as
   if (!verifyAdminPasswordPrompt()) return;
   const total = IMPORTED_MEMBERS.length;
   const existingCodes = new Set(members.map(m => (m.code || '').toUpperCase()));
-  const existingNames = new Set(members.map(m => (m.name || '').toLowerCase().trim()));
+  const existingNames = new Set(members.map(m => fullName(m).toLowerCase().trim()));
   const toAdd = IMPORTED_MEMBERS.filter(r => {
     const codeKey = (r.code || '').toUpperCase();
-    const nameKey = (r.name || '').toLowerCase().trim();
+    const nameKey = recordDisplayName(r).toLowerCase().trim();
     if (codeKey && existingCodes.has(codeKey)) return false;
     if (!codeKey && nameKey && existingNames.has(nameKey)) return false;
     return true;
@@ -1766,8 +2014,14 @@ document.getElementById('importProvidedMembersBtn').addEventListener('click', as
       do { code = genCode(); } while (members.some(m => m.code === code) || existingCodes.has(code));
     }
     existingCodes.add(code.toUpperCase());
+    let firstName = (r.firstName || '').trim();
+    let lastName = (r.lastName || '').trim();
+    if (!firstName && !lastName && r.name) {
+      const split = splitLegacyName(r.name);
+      firstName = split.firstName; lastName = split.lastName;
+    }
     members.push({
-      id: uid('m'), code, name: r.name, kawan: r.kawan || '',
+      id: uid('m'), code, firstName, lastName, kawan: r.kawan || '',
       contact: r.contact || '', dob: r.dob || '',
       occupation: r.occupation || '', company: r.company || '', address: r.address || '',
       nickname: r.nickname || '', middleName: r.middleName || '', area: r.area || '',
@@ -1943,7 +2197,7 @@ function runReport(serviceName, serviceDate, kawanFilter) {
     <div class="roster-kawan">
       <h4>${escapeHtml(k)} <span class="count-pill">${absentGroups[k].length}</span></h4>
       <table><thead><tr><th style="width:32px;">#</th><th>Name</th></tr></thead><tbody>
-        ${absentGroups[k].map((m, i) => `<tr><td>${i + 1}</td><td>${escapeHtml(m.name)}</td></tr>`).join('')}
+        ${absentGroups[k].map((m, i) => `<tr><td>${i + 1}</td><td>${escapeHtml(fullName(m))}</td></tr>`).join('')}
       </tbody></table>
     </div>
   `).join('');
@@ -1958,7 +2212,7 @@ function reportExportRows() {
   if (!lastReport) return null;
   const rows = [['Status','Kawan','Name','Time In','Service Name','Service Date']];
   lastReport.presentRecords.forEach(a => rows.push(['Present', a.kawan || 'Unassigned', a.memberName, a.timeIn || '', a.serviceName, a.serviceDate]));
-  lastReport.absentMembers.forEach(m => rows.push(['Absent', m.kawan || 'Unassigned', m.name, '', lastReport.serviceName, lastReport.serviceDate]));
+  lastReport.absentMembers.forEach(m => rows.push(['Absent', m.kawan || 'Unassigned', fullName(m), '', lastReport.serviceName, lastReport.serviceDate]));
   return rows;
 }
 document.getElementById('exportReportCsvBtn').addEventListener('click', () => {
@@ -2159,7 +2413,7 @@ function buildActiveServiceReportText(serviceName, serviceDate, presentRecords, 
   let absentSeq = 0;
   Object.keys(absentGroups).sort().forEach(k => {
     lines.push(k);
-    absentGroups[k].forEach(m => { absentSeq++; lines.push(`${absentSeq}. ${m.name}`); });
+    absentGroups[k].forEach(m => { absentSeq++; lines.push(`${absentSeq}. ${fullName(m)}`); });
   });
   return lines.join('\n');
 }
@@ -2228,6 +2482,20 @@ function getEntry(contribId, memberId, period) {
 function allMembersByKawan() {
   const groups = {};
   members.forEach(m => { const k = m.kawan || 'Unassigned'; (groups[k] = groups[k] || []).push(m); });
+  return groups;
+}
+let kgSearchQuery = '';
+document.getElementById('kgSearchInput').addEventListener('input', (e) => {
+  kgSearchQuery = e.target.value;
+  renderKagalakanTable();
+});
+function kgFilteredMembersByKawan() {
+  const q = kgSearchQuery.trim().toLowerCase();
+  const filtered = q
+    ? members.filter(m => memberNameMatches(m, q) || [m.kawan, m.code].some(v => (v || '').toLowerCase().includes(q)))
+    : members;
+  const groups = {};
+  filtered.forEach(m => { const k = m.kawan || 'Unassigned'; (groups[k] = groups[k] || []).push(m); });
   return groups;
 }
 function kgPeriodsForContribution(contrib) {
@@ -2337,10 +2605,10 @@ function kgRemarkCellHtml(contribId, memberId) {
 async function promptKagalakanRemark(contribId, memberId) {
   const member = members.find(m => m.id === memberId);
   if (!member) return;
-  const text = prompt(`Add a remark for ${member.name} regarding this contribution:`);
+  const text = prompt(`Add a remark for ${fullName(member)} regarding this contribution:`);
   if (!text || !text.trim()) return;
   kagalakanRemarks.push({
-    id: uid('kr'), contributionId: contribId, memberId, memberName: member.name,
+    id: uid('kr'), contributionId: contribId, memberId, memberName: fullName(member),
     text: text.trim(), status: 'pending', createdAt: new Date().toISOString(), resolvedAt: null
   });
   statusLine.textContent = 'Saving...';
@@ -2375,8 +2643,12 @@ function renderKagalakanTable() {
   members.forEach(m => periods.forEach(p => { total += (getEntry(contribId, m.id, p).amount || 0); }));
   document.getElementById('kgTotalLine').textContent = `Total Collected: ${total.toFixed(2)}`;
 
-  const groups = allMembersByKawan();
+  const groups = kgFilteredMembersByKawan();
   const kawanNames = Object.keys(groups).sort();
+  if (kawanNames.length === 0) {
+    wrap.innerHTML = '<div class="card"><div class="empty">No members match your search.</div></div>';
+    return;
+  }
   wrap.innerHTML = kawanNames.map(k => `
     <div class="card kawan-group">
       <h3>${escapeHtml(k)} <span class="count-pill">${groups[k].length}</span></h3>
@@ -2393,7 +2665,7 @@ function renderKagalakanTable() {
             }
             return `<td><span class="kg-cell-view ${badgeClass}">${label}${amountText}</span></td>`;
           }).join('');
-          return `<tr><td>${escapeHtml(m.name)}</td>${cells}<td>${kgRemarkCellHtml(contribId, m.id)}</td></tr>`;
+          return `<tr><td>${escapeHtml(fullName(m))}</td>${cells}<td>${kgRemarkCellHtml(contribId, m.id)}</td></tr>`;
         }).join('')}
       </tbody></table>
       </div>
@@ -2454,7 +2726,111 @@ function renderKagalakanAdminUI() {
   renderKagalakanTable();
 }
 
-loadAll();
+/* ---------------- SITE-WIDE ACCESS GATE ---------------- */
+const MEMBER_ID_STORAGE_KEY = 'po_member_id';
+const MEMBER_NAME_STORAGE_KEY = 'po_member_name';
+let gateSelectedMemberId = null;
+
+function isAccessGranted() { return localStorage.getItem(ACCESS_STORAGE_KEY) === '1'; }
+function setAccessGranted(val) {
+  if (val) localStorage.setItem(ACCESS_STORAGE_KEY, '1');
+  else localStorage.removeItem(ACCESS_STORAGE_KEY);
+}
+function setLoggedInMember(id, name) {
+  localStorage.setItem(MEMBER_ID_STORAGE_KEY, id);
+  localStorage.setItem(MEMBER_NAME_STORAGE_KEY, name);
+}
+function clearLoggedInMember() {
+  localStorage.removeItem(MEMBER_ID_STORAGE_KEY);
+  localStorage.removeItem(MEMBER_NAME_STORAGE_KEY);
+}
+function getLoggedInMemberId() { return localStorage.getItem(MEMBER_ID_STORAGE_KEY); }
+function getLoggedInMemberName() { return localStorage.getItem(MEMBER_NAME_STORAGE_KEY); }
+
+async function loadGateData() {
+  if (configMissing()) { accessPasswords = []; return; }
+  try {
+    accessPasswords = (await fbGetArr('accessPasswords')) || [];
+    members = (await fbGetArr('members')) || [];
+    migrateMembersArray(members);
+  } catch (e) { accessPasswords = []; }
+}
+function showAccessGate() {
+  document.getElementById('accessGate').style.display = 'flex';
+  document.querySelector('.wrap').style.display = 'none';
+  document.getElementById('accessStepSearch').style.display = 'block';
+  document.getElementById('accessStepPassword').style.display = 'none';
+  document.getElementById('gateNameSearch').value = '';
+  document.getElementById('gateNameResults').innerHTML = '';
+}
+function enterApp() {
+  document.getElementById('accessGate').style.display = 'none';
+  document.querySelector('.wrap').style.display = 'block';
+  loadAll();
+}
+async function initAccessGate() {
+  if (isAccessGranted()) { enterApp(); return; }
+  showAccessGate();
+  await loadGateData();
+}
+function renderGateNameResults() {
+  const q = document.getElementById('gateNameSearch').value.trim().toLowerCase();
+  const el = document.getElementById('gateNameResults');
+  if (!q) { el.innerHTML = ''; return; }
+  const matches = members.filter(m => memberNameMatches(m, q)).slice(0, 8);
+  if (matches.length === 0) { el.innerHTML = '<div class="empty">No matching name found.</div>'; return; }
+  el.innerHTML = matches.map(m => `
+    <div class="match-card">
+      <div class="info">
+        <div class="name gate-select" data-id="${m.id}" data-name="${escapeHtml(fullName(m))}" style="cursor:pointer;">${escapeHtml(fullName(m))}${m.nickname ? ` <span class="status">"${escapeHtml(m.nickname)}"</span>` : ''}</div>
+        <div class="kawan">${escapeHtml(m.kawan || 'Unassigned')}</div>
+      </div>
+    </div>`).join('');
+  el.querySelectorAll('.gate-select').forEach(n => {
+    n.addEventListener('click', () => {
+      gateSelectedMemberId = n.dataset.id;
+      document.getElementById('gateSelectedName').textContent = n.dataset.name;
+      document.getElementById('accessStepSearch').style.display = 'none';
+      document.getElementById('accessStepPassword').style.display = 'block';
+      document.getElementById('accessPasswordInput').value = '';
+      document.getElementById('accessError').textContent = '';
+      document.getElementById('accessPasswordInput').focus();
+    });
+  });
+}
+document.getElementById('gateNameSearch').addEventListener('input', renderGateNameResults);
+document.getElementById('gateBackBtn').addEventListener('click', () => {
+  gateSelectedMemberId = null;
+  document.getElementById('accessStepPassword').style.display = 'none';
+  document.getElementById('accessStepSearch').style.display = 'block';
+  document.getElementById('gateNameSearch').focus();
+});
+document.getElementById('accessSubmitBtn').addEventListener('click', () => {
+  if (!gateSelectedMemberId) return;
+  const entered = document.getElementById('accessPasswordInput').value;
+  const validList = accessPasswords.length > 0 ? accessPasswords : [DEFAULT_ACCESS_PASSWORD];
+  if (validList.includes(entered)) {
+    const member = members.find(m => m.id === gateSelectedMemberId);
+    setAccessGranted(true);
+    setLoggedInMember(gateSelectedMemberId, member ? fullName(member) : document.getElementById('gateSelectedName').textContent);
+    document.getElementById('accessError').textContent = '';
+    document.getElementById('accessPasswordInput').value = '';
+    enterApp();
+  } else {
+    document.getElementById('accessError').textContent = 'Incorrect password.';
+  }
+});
+document.getElementById('accessPasswordInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') document.getElementById('accessSubmitBtn').click();
+});
+document.getElementById('siteLogoutBtn').addEventListener('click', () => {
+  if (!confirm('Log out of the app on this device? You will need to search your name and enter the password again next time.')) return;
+  setAccessGranted(false);
+  clearLoggedInMember();
+  location.reload();
+});
+
+initAccessGate();
 </script>
 </body>
 </html>
